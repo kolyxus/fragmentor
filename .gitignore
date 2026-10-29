@@ -1,0 +1,21 @@
+# Секреты
+.env
+.env.local
+.env.production
+.claude/settings.local.json
+
+# Данные и демки
+bot/data/
+*.db
+*.db-shm
+*.db-wal
+bot/testdata/*.dem
+bot/testdata/*.dem.*
+
+# Сборка
+bot/bin/
+landing/dist/
+
+# Системное
+.DS_Store
+Thumbs.db
