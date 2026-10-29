@@ -19,7 +19,7 @@
 
 ---
 
-## Шаг 1. Каркас бота и /start
+## Шаг 1. Каркас бота и /start [x]
 
 Цель: бот запускается локально и отвечает на /start.
 
@@ -42,7 +42,21 @@
 - повторный `/start` не дублирует пользователя (есть тест);
 - `go test ./...` проходит.
 
-Что сделано: —
+Что сделано (2026-10-29):
+- Модуль `github.com/kolyxus/fragmentor/bot`, Go 1.27, go-telegram/bot v1.27.0, modernc.org/sqlite v1.61.0.
+  Конспекты: `docs/notes/go-telegram-bot.md`, `docs/notes/modernc-sqlite.md`.
+- `internal/config`: `TELEGRAM_BOT_TOKEN`, `DATABASE_PATH`, `LOG_LEVEL` из окружения и `.env`
+  (свой парсер, окружение важнее файла).
+- `internal/storage`: SQLite (WAL, `BEGIN IMMEDIATE`, `STRICT`, время в unix-секундах),
+  миграции `migrations/NNNN_name.sql` + `schema_migrations`, таблица `users`, `JoinWaitlist`.
+  Следующая миграция — `0002_...sql`.
+- `internal/i18n`: все тексты на ru/en, язык по `language_code` (`ru*` → русский, иначе английский).
+- `internal/telegram`: `/start` (очередь на бету, повторный — «ты уже в очереди»), `/help`,
+  подсказка на прочие сообщения, только личные чаты; меню команд и описания регистрируются
+  при старте, если отличаются; 4 воркера, корректная остановка по SIGINT/SIGTERM, recover.
+- `cmd/bot`, `Makefile` (`run`, `test`, `lint`, `build`), `bot/README.md`.
+- Проверено вживую на @fragmentor_ai_bot: ответы на ru и en, повторный `/start`, регистрация профиля.
+  Telegram Desktop присылает `en` только при английских системе и интерфейсе — см. заметки.
 
 ---
 
