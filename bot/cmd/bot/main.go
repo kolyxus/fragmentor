@@ -37,12 +37,10 @@ func run() (err error) {
 	slog.SetDefault(log)
 	log.Info("starting", "version", version(), "dev_bot", cfg.DevBot)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	context.AfterFunc(ctx, func() {
-		log.Info("shutting down, press Ctrl+C again to kill")
-		stop() // restore default handling: the next signal kills the process
-	})
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := cancelOnSignal(log, sigs)
+	defer cancel()
 
 	store, err := storage.Open(ctx, cfg.DatabasePath)
 	if err != nil {
@@ -68,6 +66,26 @@ func run() (err error) {
 	}
 	log.Info("bot stopped")
 	return nil
+}
+
+// cancelOnSignal returns a context that the first signal from sigs cancels.
+// The shutdown is logged before the context is cancelled: then the line comes
+// ahead of everything the shutdown logs and is not lost when the process
+// exits right after. Before that sigs is unsubscribed, so the next signal
+// gets the default handling and kills the process.
+func cancelOnSignal(log *slog.Logger, sigs chan os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-sigs:
+			signal.Stop(sigs)
+			log.Info("shutting down, press Ctrl+C again to kill")
+			cancel()
+		case <-ctx.Done():
+			signal.Stop(sigs)
+		}
+	}()
+	return ctx, cancel
 }
 
 // version tells which build is running, so that after a deploy the log shows
