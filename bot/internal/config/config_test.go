@@ -99,9 +99,29 @@ func TestParse(t *testing.T) {
 			want: Config{TelegramToken: "tok", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelWarn},
 		},
 		{
+			name: "dev token wins",
+			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": " dev "},
+			want: Config{TelegramToken: "dev", DevBot: true, DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+		},
+		{
+			name: "dev token alone is enough",
+			env:  map[string]string{"TELEGRAM_DEV_BOT_TOKEN": "dev"},
+			want: Config{TelegramToken: "dev", DevBot: true, DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+		},
+		{
+			name: "blank dev token is ignored",
+			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": "  "},
+			want: Config{TelegramToken: "prod", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+		},
+		{
 			name:    "missing token",
 			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "  "},
-			wantErr: "TELEGRAM_BOT_TOKEN is not set",
+			wantErr: "TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)",
+		},
+		{
+			name:    "both tokens blank",
+			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_DEV_BOT_TOKEN": " "},
+			wantErr: "TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)",
 		},
 		{
 			name:    "bad level",
@@ -154,6 +174,20 @@ func TestLoad(t *testing.T) {
 		}
 		if cfg.DatabasePath != "env.db" || cfg.TelegramToken != "file-token" {
 			t.Errorf("load() = %+v, want DATABASE_PATH from env and token from file", cfg)
+		}
+	})
+
+	t.Run("dev token only in file", func(t *testing.T) {
+		devPath := filepath.Join(dir, "dev.env")
+		if err := os.WriteFile(devPath, []byte("TELEGRAM_DEV_BOT_TOKEN=dev-token\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := load(devPath, mapLookup(nil))
+		if err != nil {
+			t.Fatalf("load() error: %v", err)
+		}
+		if cfg.TelegramToken != "dev-token" || !cfg.DevBot {
+			t.Errorf("load() = %+v, want the dev token", cfg)
 		}
 	})
 

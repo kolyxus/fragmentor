@@ -60,7 +60,7 @@
 
 ---
 
-## Шаг 2. Ранний деплой
+## Шаг 2. Ранний деплой [~]
 
 Цель: `/start` работает круглосуточно, лист ожидания копится уже сейчас.
 
@@ -77,7 +77,20 @@
 
 Нужно от тебя: доступ по SSH к серверу и выполнение команд из инструкции.
 
-Что сделано: —
+Что сделано (2026-10-30):
+- `make build-linux` → статический `bin/fragmentor-linux-amd64` (`CGO_ENABLED=0`, `-trimpath -ldflags=-s`, ~11,8 МБ).
+  Первая строка лога — `starting version=<коммит>[+dirty] dev_bot=...`, коммит из вшитой Go информации о сборке.
+- `deploy/fragmentor.service`: пользователь `fragmentor`, бинарник `/opt/fragmentor/fragmentor`,
+  секреты `/etc/fragmentor/fragmentor.env` (root, 600, читает systemd), база `/var/lib/fragmentor` (`StateDirectory`),
+  `Restart=always`, песочница. Проверено в WSL Ubuntu 26.04 (systemd 259): `verify`, запуск, перезапуск после
+  `kill -9`, остановка, `enable`, сеть и запись только в свою папку внутри песочницы, `systemd-analyze security` 1.4 OK.
+  Из WSL нет выхода в интернет, поэтому бот против Telegram внутри песочницы не проверен.
+- `bot/DEPLOY.md`: SSH-ключ и алиас `fragmentor-vps`, проверка Telegram скриптом `deploy/check-telegram.sh`,
+  первая установка, выкатка новой версии с `.prev`, бэкап базы перед миграциями, откат, типовые ошибки.
+- `TELEGRAM_DEV_BOT_TOKEN` важнее `TELEGRAM_BOT_TOKEN`, и тогда боевой токен не обязателен (тесты).
+  Локально проверено: поднимается @fragmentor_dev_bot.
+- `.gitattributes`: `*.sh` и `*.service` всегда с LF. `go mod tidy`.
+- Осталось: проверка Telegram с сервера, установка по DEPLOY.md, проверка `/start` и перезагрузки.
 
 ---
 

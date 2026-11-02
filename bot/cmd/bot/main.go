@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/kolyxus/fragmentor/bot/internal/config"
@@ -34,6 +35,7 @@ func run() (err error) {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(log)
+	log.Info("starting", "version", version(), "dev_bot", cfg.DevBot)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -66,4 +68,38 @@ func run() (err error) {
 	}
 	log.Info("bot stopped")
 	return nil
+}
+
+// version tells which build is running, so that after a deploy the log shows
+// the new version is up.
+func version() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	return versionFrom(info.Settings)
+}
+
+// versionFrom returns the commit that go build stamped into the binary,
+// shortened to 12 characters, with "+dirty" if the working tree had
+// uncommitted changes. Builds without the stamp, such as go run, are "devel".
+func versionFrom(settings []debug.BuildSetting) string {
+	var revision string
+	var dirty bool
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs.revision":
+			revision = s.Value
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	if revision == "" {
+		return "devel"
+	}
+	revision = revision[:min(len(revision), 12)]
+	if dirty {
+		revision += "+dirty"
+	}
+	return revision
 }

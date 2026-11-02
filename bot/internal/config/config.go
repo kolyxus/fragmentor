@@ -17,8 +17,11 @@ const DefaultDatabasePath = "./data/fragmentor.db"
 // Config holds the settings the bot needs.
 type Config struct {
 	TelegramToken string
-	DatabasePath  string
-	LogLevel      slog.Level
+	// DevBot reports that TelegramToken is the dev bot token from
+	// TELEGRAM_DEV_BOT_TOKEN.
+	DevBot       bool
+	DatabasePath string
+	LogLevel     slog.Level
 }
 
 // Load reads the .env file at dotenvPath, if there is one, and builds the
@@ -43,6 +46,11 @@ func load(dotenvPath string, lookupEnv func(string) (string, bool)) (Config, err
 
 // Parse builds the config from lookup. Errors name the variables but never
 // include their values, which may be secrets.
+//
+// TELEGRAM_DEV_BOT_TOKEN, if set, wins over TELEGRAM_BOT_TOKEN, which then is
+// not required. It is set only in the local .env, so that local runs use a
+// separate dev bot: Telegram lets only one process poll a bot, and a local run
+// with the production token would fight the server for updates.
 func Parse(lookup func(string) (string, bool)) (Config, error) {
 	get := func(key string) string {
 		v, _ := lookup(key)
@@ -54,10 +62,14 @@ func Parse(lookup func(string) (string, bool)) (Config, error) {
 		DatabasePath:  get("DATABASE_PATH"),
 		LogLevel:      slog.LevelInfo,
 	}
+	if dev := get("TELEGRAM_DEV_BOT_TOKEN"); dev != "" {
+		cfg.TelegramToken = dev
+		cfg.DevBot = true
+	}
 
 	var errs []error
 	if cfg.TelegramToken == "" {
-		errs = append(errs, errors.New("TELEGRAM_BOT_TOKEN is not set"))
+		errs = append(errs, errors.New("TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)"))
 	}
 	if cfg.DatabasePath == "" {
 		cfg.DatabasePath = DefaultDatabasePath

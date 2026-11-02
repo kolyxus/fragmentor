@@ -1,0 +1,4 @@
+# Files that go to the Linux server keep LF line endings in a Windows
+# checkout too: with CRLF, bash and systemd choke on them.
+*.sh       text eol=lf
+*.service  text eol=lf
