@@ -1,6 +1,9 @@
 # systemd unit for the Fragmentor bot. Installed as
 # /etc/systemd/system/fragmentor.service, see bot/DEPLOY.md.
 #
+# The server (1 GB of RAM) also runs the VPN: Xray in Docker on port 443.
+# The bot leaves it alone: it listens on no ports and does not use Docker.
+#
 # Layout on the server:
 #   /opt/fragmentor/fragmentor       the binary (make build-linux)
 #   /etc/fragmentor/fragmentor.env   settings and secrets, root-only;
@@ -29,6 +32,23 @@ EnvironmentFile=/etc/fragmentor/fragmentor.env
 # polling ends, updates in progress are answered, the database is closed.
 Restart=always
 RestartSec=5
+
+# Memory: when it runs short, the bot goes, the VPN stays.
+# - GOMEMLIMIT: past it the Go GC works harder to stay under it.
+# - MemoryHigh: the kernel reclaims the bot's cache and throttles it. Kept
+#   just under MemoryMax on purpose: with a wide gap a bot that needs more
+#   hangs throttled for minutes instead of being killed and restarted.
+# - MemoryMax of RAM plus MemorySwapMax of swap: past both the kernel kills
+#   the bot alone and systemd restarts it. MemoryMax does not count swap, so
+#   without MemorySwapMax the bot could take all of it.
+# - OOMScoreAdjust: if the whole system runs out of memory, the bot is the
+#   first victim.
+# Provisional: revisit after measuring the parser's peak memory on step 4.
+Environment=GOMEMLIMIT=320MiB
+MemoryHigh=380M
+MemoryMax=400M
+MemorySwapMax=128M
+OOMScoreAdjust=1000
 
 # Sandbox: the bot writes only to its state directory and talks to the
 # network, nothing else. Unknown options on an older systemd are ignored
