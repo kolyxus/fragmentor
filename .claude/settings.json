@@ -4,7 +4,9 @@
       "Read(./bot/.env)",
       "Read(**/.env)",
       "Read(**/.env.local)",
-      "Read(**/.env.production)"
+      "Read(**/.env.production)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)"
     ]
   }
 }
