@@ -54,11 +54,14 @@ type Messages struct {
 	// /matches: the latest matches of the linked account.
 	MatchesNoAccount string // no FACEIT account linked yet
 	MatchesEmpty     string // %s: nickname of an account without finished CS2 matches
-	MatchesHeader    string // %s: nickname; one line per match follows
-	MatchWin         string
-	MatchLoss        string
-	MatchNoMap       string // in place of the map when FACEIT did not give it
+	MatchesHeader    string // %s: nickname; the matches follow
+	MatchStats       string // the player's line in a match; %d kills, deaths, assists, ADR, headshot %
 	MatchTimeLayout  string // Go time layout of the match start
+
+	// Time zone, chosen with the button under /matches.
+	TimezoneButton string // the button under the match list
+	TimezoneAsk    string // above the buttons with the time in each zone
+	TimezoneSaved  string // the zone is saved, but the match list is not shown
 
 	// Bot profile, registered through the Bot API at startup.
 	CommandStart     string // /start in the command menu

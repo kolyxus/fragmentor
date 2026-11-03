@@ -33,6 +33,15 @@ type fakeAPI struct {
 	commands          map[string]string // language code -> commands as JSON
 	descriptions      map[string]string
 	shortDescriptions map[string]string
+	// photoError, if set, is the description sendPhoto fails with, as
+	// Telegram does when it cannot take the picture by the link.
+	photoError string
+}
+
+// apiError is a Bot API error answer.
+type apiError struct {
+	code        int
+	description string
 }
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -70,6 +79,10 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "error_code": 404, "description": "Not Found"})
 		return
 	}
+	if e, isErr := result.(apiError); isErr {
+		writeJSON(w, map[string]any{"ok": false, "error_code": e.code, "description": e.description})
+		return
+	}
 	if updates, isUpdates := result.([]*models.Update); isUpdates && len(updates) == 0 {
 		// Stand in for long polling without spinning.
 		select {
@@ -105,7 +118,19 @@ func (f *fakeAPI) result(method string, params map[string]string) (any, bool) {
 			"chat":       map[string]any{"id": chatID, "type": "private"},
 			"text":       params["text"],
 		}, true
-	case "editMessageText":
+	case "sendPhoto":
+		if f.photoError != "" {
+			return apiError{code: 400, description: f.photoError}, true
+		}
+		chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
+		return map[string]any{
+			"message_id": len(f.calls),
+			"date":       0,
+			"chat":       map[string]any{"id": chatID, "type": "private"},
+			"photo":      []map[string]any{{"file_id": "photo-1", "file_unique_id": "u1", "width": 300, "height": 300}},
+			"caption":    params["caption"],
+		}, true
+	case "editMessageText", "editMessageCaption":
 		chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
 		messageID, _ := strconv.Atoi(params["message_id"])
 		return map[string]any{
@@ -113,6 +138,7 @@ func (f *fakeAPI) result(method string, params map[string]string) (any, bool) {
 			"date":       0,
 			"chat":       map[string]any{"id": chatID, "type": "private"},
 			"text":       params["text"],
+			"caption":    params["caption"],
 		}, true
 	case "answerCallbackQuery", "sendChatAction":
 		return true, true
@@ -186,4 +212,19 @@ func (f *fakeAPI) editedTexts() []string {
 		out = append(out, c.params["text"])
 	}
 	return out
+}
+
+// editedCaptions returns the captions photos were edited to, in order.
+func (f *fakeAPI) editedCaptions() []string {
+	var out []string
+	for _, c := range f.callsTo("editMessageCaption") {
+		out = append(out, c.params["caption"])
+	}
+	return out
+}
+
+func (f *fakeAPI) failPhotos(description string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.photoError = description
 }

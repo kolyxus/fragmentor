@@ -24,6 +24,7 @@ Xray в Docker на порту 443. Сайт и почта живут отдел
 | `/opt/fragmentor/fragmentor.prev` | предыдущая версия для отката | root, 755 |
 | `/etc/fragmentor/fragmentor.env` | настройки и секреты | root, 600 |
 | `/var/lib/fragmentor/fragmentor.db` | база SQLite | fragmentor, 700 на папку |
+| `/var/backups/fragmentor-<дата-время>` | копии базы перед выкаткой, `make deploy` оставляет 10 последних | fragmentor |
 | `/etc/systemd/system/fragmentor.service` | копия `deploy/fragmentor.service` | root, 644 |
 
 - Бот работает от системного пользователя `fragmentor` без входа в систему.
@@ -384,6 +385,46 @@ msg="polling for updates"
 
 ## 4. Выкатить новую версию
 
+### 4.1. Одной командой: `make deploy`
+
+На своём компьютере, из папки `bot/`, в PowerShell или Git Bash:
+
+```
+make deploy
+```
+
+Запускаешь только ты: Claude Code эта цель запрещена (`.claude/settings.json`).
+
+Что она делает — то же, что раздел 4.2 вручную:
+
+1. Останавливается с ошибкой `make deploy: commit or stash the changes first: ...` и списком файлов,
+   если в репозитории есть незакоммиченные или неотслеживаемые изменения: иначе на сервер уехала бы
+   не закоммиченная версия, а в логе было бы `version=<коммит>+dirty`.
+2. `make lint test build-linux`. Упали `gofmt`, `go vet` или тесты — дальше не идёт, на сервере ничего не меняется.
+3. `scp` бинарника и скрипта `deploy/install-release.sh` в домашнюю папку root на `fragmentor-vps`.
+4. `ssh fragmentor-vps sh install-release.sh <коммит> fragmentor-linux-amd64`. Скрипт на сервере:
+   - останавливает бота (`systemctl stop`);
+   - копирует базу в `/var/backups/fragmentor-<ГГГГММДД-ЧЧММСС>` и оставляет 10 последних копий,
+     поэтому проверять, есть ли в версии миграции, больше не нужно;
+   - сохраняет старый бинарник как `fragmentor.prev`, ставит новый и запускает бота;
+   - до 30 с ждёт в логе `starting version=<коммит>` и `polling for updates`, затем печатает лог с момента запуска;
+   - убирает из домашней папки бинарник и сам скрипт.
+
+В конце — `deploy: version <коммит> is up ...`. Бот простаивает несколько секунд: от остановки до запуска.
+
+Если что-то пошло не так:
+- **На сервере сбой до запуска новой версии** (например, не удалась копия базы): скрипт снова запускает бота
+  на старом бинарнике и выходит с ошибкой.
+- **`deploy: run as root: ...`** — алиас заходит не под root (`User root` в `~/.ssh/config`, раздел 1.1).
+- **`deploy: the log has no 'starting version=...'` или `no 'polling for updates' in 30 s`** — новая версия
+  не поднялась. Смотри лог, который скрипт напечатал выше, и раздел 8; откат — раздел 5, копия базы — в последней
+  `/var/backups/fragmentor-*`.
+- **`scp`/`ssh` не подключились** — проверь `ssh fragmentor-vps` (раздел 1).
+
+Другой сервер или алиас: `make deploy DEPLOY_HOST=<алиас>`. Под ARM: `make deploy LINUX_ARCH=arm64`.
+
+### 4.2. Вручную
+
 На своём компьютере, из закоммиченного состояния (иначе в логе будет `version=<коммит>+dirty`):
 
 ```
@@ -398,7 +439,7 @@ ssh fragmentor-vps
 
 ```sh
 systemctl stop fragmentor
-cp -a /var/lib/fragmentor /var/backups/fragmentor-$(date +%Y%m%d-%H%M)
+cp -a /var/lib/fragmentor /var/backups/fragmentor-$(date +%Y%m%d-%H%M%S)
 ```
 
 Замена бинарника (старый остаётся как `.prev`):

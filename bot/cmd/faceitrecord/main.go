@@ -12,8 +12,8 @@
 //	go run ./cmd/faceitrecord -nickname <nickname> [-match <match_id>]...
 //
 // It records the player, a player search, the CS2 match history, the details
-// and stats of the latest matches and of every -match, and two error
-// responses. It also prints a few probes of the API behaviour, see
+// and stats of the latest matches and of every -match, the player's stats in
+// the last 10 matches, and two error responses. It also prints a few probes of the API behaviour, see
 // docs/notes/faceit-data-api.md.
 package main
 
@@ -206,6 +206,15 @@ func run(envPath, nickname, out string, recent int, extraMatches []string) error
 		r.save("_stats.json", id, status, stats)
 	}
 
+	playerStats, status, err := r.get(ctx, r.key, "/players/"+url.PathEscape(playerID)+"/games/cs2/stats", url.Values{"limit": {"10"}})
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("player match stats: status %d", status)
+	}
+	r.save("player_match_stats.json", "", status, playerStats)
+
 	if !r.has("error_not_found.json") {
 		data, status, err := r.get(ctx, r.key, "/matches/1-00000000-0000-0000-0000-000000000000", nil)
 		if err != nil {
@@ -377,7 +386,7 @@ var (
 // Fakes are numbered in the order the values are met; objects are walked in
 // sorted key order, so a new recording numbers them the same way.
 type anonymizer struct {
-	ids, steamIDs, nicknames map[string]string
+	ids, steamIDs, nicknames, avatars map[string]string
 	// secretIDs and secretNames map every replaced real value, lower-cased,
 	// to its fake one for check. IDs are long and distinctive, so check
 	// looks for them inside strings; names may be short common words, so
@@ -390,6 +399,7 @@ func newAnonymizer() *anonymizer {
 		ids:         map[string]string{},
 		steamIDs:    map[string]string{},
 		nicknames:   map[string]string{},
+		avatars:     map[string]string{},
 		secretIDs:   map[string]string{},
 		secretNames: map[string]string{},
 	}
@@ -416,6 +426,28 @@ func (a *anonymizer) steamID(s string) string {
 	return fake
 }
 
+// avatar replaces the link to a picture on the FACEIT CDN with a fake one on
+// the same host, so the client's host check still has something real to
+// test; any other link goes. Fakes have their own numbering, so adding
+// avatars did not renumber the IDs of earlier recordings.
+func (a *anonymizer) avatar(s string) string {
+	u, err := url.Parse(s)
+	if s == "" || err != nil || !strings.HasSuffix(strings.ToLower(u.Hostname()), ".faceit-cdn.net") {
+		return ""
+	}
+	key := strings.ToLower(s)
+	if fake, ok := a.avatars[key]; ok {
+		return fake
+	}
+	fake := fmt.Sprintf("https://%s/images/avatar-%04d.jpg", strings.ToLower(u.Hostname()), len(a.avatars)+1)
+	a.avatars[key] = fake
+	a.secretIDs[key] = fake
+	for _, id := range uuidRe.FindAllString(s, -1) {
+		a.secretIDs[strings.ToLower(id)] = fake
+	}
+	return fake
+}
+
 // nickname maps player nicknames and the team names FACEIT builds from them,
 // "team_<nickname>".
 func (a *anonymizer) nickname(s string) string {
@@ -437,7 +469,11 @@ func (a *anonymizer) nickname(s string) string {
 // value returns v, found under key, with identifying values replaced.
 func (a *anonymizer) value(key string, v any) any {
 	switch key {
-	case "avatar", "cover_image", "cover_featured_image":
+	case "avatar":
+		if s, ok := v.(string); ok {
+			return a.avatar(s)
+		}
+	case "cover_image", "cover_featured_image":
 		if _, ok := v.(string); ok {
 			return ""
 		}
@@ -447,7 +483,7 @@ func (a *anonymizer) value(key string, v any) any {
 		if _, ok := v.(string); ok {
 			return "2020-01-01T00:00:00Z"
 		}
-	case "nickname", "game_player_name", "steam_nickname", "Team":
+	case "nickname", "Nickname", "game_player_name", "steam_nickname", "Team":
 		if s, ok := v.(string); ok {
 			return a.nickname(s)
 		}

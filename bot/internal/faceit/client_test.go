@@ -3,6 +3,7 @@ package faceit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -25,6 +26,7 @@ func TestPlayerByNickname(t *testing.T) {
 		ID:         testPlayerID,
 		Nickname:   testNickname,
 		Country:    "kp",
+		Avatar:     "https://distribution.faceit-cdn.net/images/avatar-0001.jpg",
 		HasCS2:     true,
 		SteamID64:  testSteamID64,
 		SkillLevel: 10,
@@ -121,6 +123,9 @@ func TestInvalidIDsMakeNoRequest(t *testing.T) {
 		}
 		if _, err := c.History(ctx, id, 5); err == nil {
 			t.Errorf("History(%q) succeeded", id)
+		}
+		if _, err := c.LatestMatchStats(ctx, id, 5); err == nil {
+			t.Errorf("LatestMatchStats(%q) succeeded", id)
 		}
 	}
 	for _, id := range []string{"", "1-../../players", testMatchID + "/stats", "x-" + testPlayerID} {
@@ -343,6 +348,52 @@ func TestMatchStatsNumbersAsJSONNumbers(t *testing.T) {
 	}
 }
 
+func TestAvatarURL(t *testing.T) {
+	for link, want := range map[string]string{
+		"https://distribution.faceit-cdn.net/images/abc.jpg":          "https://distribution.faceit-cdn.net/images/abc.jpg",
+		"https://assets.faceit-cdn.net/avatars/abc_1550573467862.jpg": "https://assets.faceit-cdn.net/avatars/abc_1550573467862.jpg",
+		"https://DISTRIBUTION.FACEIT-CDN.NET/images/abc.jpg":          "https://DISTRIBUTION.FACEIT-CDN.NET/images/abc.jpg",
+		"": "",
+		"http://distribution.faceit-cdn.net/images/abc.jpg":       "",
+		"https://avatars.steamstatic.com/abc_full.jpg":            "",
+		"https://faceit-cdn.net.evil.example/abc.jpg":             "",
+		"https://evilfaceit-cdn.net/abc.jpg":                      "",
+		"https://user@distribution.faceit-cdn.net/images/abc.jpg": "",
+		"javascript:alert(1)":                                     "",
+	} {
+		if got := avatarURL(link); got != want {
+			t.Errorf("avatarURL(%q) = %q, want %q", link, got, want)
+		}
+	}
+}
+
+func TestLatestMatchStats(t *testing.T) {
+	srv := newFixtureServer(t)
+	c, _ := newTestClient(t, srv)
+
+	got, err := c.LatestMatchStats(context.Background(), testPlayerID, 10)
+	if err != nil {
+		t.Fatalf("LatestMatchStats() error: %v", err)
+	}
+	if len(got) != 10 {
+		t.Fatalf("LatestMatchStats() returned %d matches, want 10", len(got))
+	}
+	want := PlayerMatchStats{MatchID: testMatchID, Map: "de_cache", Kills: 21, Deaths: 27, Assists: 4,
+		Headshots: 9, HeadshotsPct: 43, MVPs: 3, ADR: 63.8}
+	if got[0] != want {
+		t.Errorf("first match = %+v, want %+v", got[0], want)
+	}
+	if !got[4].Won || got[4].Map != "de_mirage" {
+		t.Errorf("fifth match = %+v, want a won match on de_mirage", got[4])
+	}
+	if r, want := srv.requestList(), []string{"/players/" + testPlayerID + "/games/cs2/stats?limit=10"}; !slices.Equal(r, want) {
+		t.Errorf("requests %q, want %q", r, want)
+	}
+}
+
+// fixtureMatch returns the fake ID of a recorded match by its number.
+func fixtureMatch(n int) string { return fmt.Sprintf("1-00000000-0000-4000-8000-%012d", n) }
+
 func TestRecentMatches(t *testing.T) {
 	srv := newFixtureServer(t)
 	c, _ := newTestClient(t, srv)
@@ -351,37 +402,57 @@ func TestRecentMatches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentMatches() error: %v", err)
 	}
-	match := func(n int) string {
-		return "1-00000000-0000-4000-8000-0000000000" + string(rune('0'+n/10)) + string(rune('0'+n%10))
+	requests := srv.requestList()
+	slices.Sort(requests)
+	wantRequests := []string{
+		"/players/" + testPlayerID + "/games/cs2/stats?limit=10",
+		"/players/" + testPlayerID + "/history?game=cs2&limit=10",
 	}
+	if !slices.Equal(requests, wantRequests) {
+		t.Errorf("requests %q, want %q", requests, wantRequests)
+	}
+
 	at := func(month, day, hour, min, sec int) time.Time {
 		return time.Date(2026, time.Month(month), day, hour, min, sec, 0, time.UTC)
 	}
+	stats := func(n int, mapID string, k, d, a, hs, hsPct, mvps int, adr float64, won bool) PlayerMatchStats {
+		return PlayerMatchStats{MatchID: fixtureMatch(n), Map: mapID, Kills: k, Deaths: d, Assists: a,
+			Headshots: hs, HeadshotsPct: hsPct, MVPs: mvps, ADR: adr, Won: won}
+	}
+	// The numbers are those of the match scoreboards in testdata/matches.
 	want := []MatchSummary{
-		{ID: match(4), StartedAt: at(10, 31, 17, 3, 25), Map: "de_cache", MapName: "Cache", Score: 16, OpponentScore: 19},
-		{ID: match(14), StartedAt: at(10, 24, 16, 43, 4), Map: "de_ancient", MapName: "Ancient", Score: 12, OpponentScore: 16},
-		{ID: match(24), StartedAt: at(10, 24, 16, 6, 3), Map: "de_ancient", MapName: "Ancient", Score: 6, OpponentScore: 13},
-		{ID: match(34), StartedAt: at(10, 22, 17, 5, 28), Map: "de_anubis", MapName: "Anubis", Score: 9, OpponentScore: 13},
-		{ID: match(44), StartedAt: at(10, 19, 16, 18, 32), Map: "de_mirage", MapName: "Mirage", Score: 13, OpponentScore: 10, Won: true},
+		{ID: fixtureMatch(4), StartedAt: at(10, 31, 17, 3, 25), Score: 16, OpponentScore: 19,
+			HasStats: true, Stats: stats(4, "de_cache", 21, 27, 4, 9, 43, 3, 63.8, false)},
+		{ID: fixtureMatch(14), StartedAt: at(10, 24, 16, 43, 4), Score: 12, OpponentScore: 16,
+			HasStats: true, Stats: stats(14, "de_ancient", 19, 20, 5, 9, 47, 3, 73.5, false)},
+		{ID: fixtureMatch(24), StartedAt: at(10, 24, 16, 6, 3), Score: 6, OpponentScore: 13,
+			HasStats: true, Stats: stats(24, "de_ancient", 12, 17, 8, 7, 58, 2, 80.6, false)},
+		{ID: fixtureMatch(34), StartedAt: at(10, 22, 17, 5, 28), Score: 9, OpponentScore: 13,
+			HasStats: true, Stats: stats(34, "de_anubis", 15, 17, 4, 8, 53, 3, 70.4, false)},
+		{ID: fixtureMatch(44), StartedAt: at(10, 19, 16, 18, 32), Score: 13, OpponentScore: 10, Won: true,
+			HasStats: true, Stats: stats(44, "de_mirage", 13, 18, 4, 7, 54, 3, 65, true)},
 	}
-	if !slices.EqualFunc(got, want, func(a, b MatchSummary) bool { return a == b }) {
+	if !slices.Equal(got, want) {
 		t.Errorf("RecentMatches() =\n%+v\nwant\n%+v", got, want)
-	}
-	requests := srv.requestList()
-	if len(requests) != 6 || requests[0] != "/players/"+testPlayerID+"/history?game=cs2&limit=10" {
-		t.Errorf("requests %q, want the history and 5 match details", requests)
 	}
 }
 
-func TestRecentMatchesWithoutSomeDetails(t *testing.T) {
+func TestRecentMatchesJoinsByMatchID(t *testing.T) {
 	srv := newFixtureServer(t)
-	broken := "/matches/1-00000000-0000-4000-8000-000000000014"
+	line := func(id, mapID string, kills int) string {
+		return fmt.Sprintf(`{"stats":{"Match Id":%q,"Map":%q,"Kills":"%d"}}`, id, mapID, kills)
+	}
 	srv.setOverride(func(w http.ResponseWriter, r *http.Request) bool {
-		if r.URL.Path == broken {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return true
+		if !strings.HasSuffix(r.URL.Path, "/games/cs2/stats") {
+			return false
 		}
-		return false
+		// Out of order, with a match the history does not have, and nothing
+		// for the second match of the history.
+		_, _ = w.Write([]byte(`{"items":[` +
+			line("1-00000000-0000-4000-8000-000000000777", "de_nuke", 30) + `,` +
+			line(fixtureMatch(24), "de_ancient", 12) + `,` +
+			line(fixtureMatch(4), "de_cache", 21) + `]}`))
+		return true
 	})
 	c, _ := newTestClient(t, srv)
 
@@ -389,17 +460,81 @@ func TestRecentMatchesWithoutSomeDetails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentMatches() error: %v", err)
 	}
-	if len(got) != 3 || got[0].MapName != "Cache" || got[1].MapName != "" || got[1].Score != 12 || got[2].MapName != "Ancient" {
-		t.Errorf("RecentMatches() = %+v, want the second match without a map", got)
+	if len(got) != 3 {
+		t.Fatalf("RecentMatches() returned %d matches, want 3", len(got))
+	}
+	for i, want := range []struct {
+		id       string
+		hasStats bool
+		mapID    string
+		kills    int
+	}{
+		{fixtureMatch(4), true, "de_cache", 21},
+		{fixtureMatch(14), false, "", 0},
+		{fixtureMatch(24), true, "de_ancient", 12},
+	} {
+		m := got[i]
+		if m.ID != want.id || m.HasStats != want.hasStats || m.Stats.Map != want.mapID || m.Stats.Kills != want.kills {
+			t.Errorf("match %d = %+v, want %+v", i, m, want)
+		}
+		if m.HasStats && m.Stats.MatchID != m.ID {
+			t.Errorf("match %d got the stats of %s", i, m.Stats.MatchID)
+		}
+	}
+	if got[1].Score != 12 || got[1].OpponentScore != 16 {
+		t.Errorf("a match without stats lost its score: %+v", got[1])
+	}
+}
+
+func TestRecentMatchesWithoutStats(t *testing.T) {
+	srv := newFixtureServer(t)
+	srv.setOverride(func(w http.ResponseWriter, r *http.Request) bool {
+		if strings.HasSuffix(r.URL.Path, "/games/cs2/stats") {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return true
+		}
+		return false
+	})
+	c, _ := newTestClient(t, srv)
+
+	got, err := c.RecentMatches(context.Background(), testPlayerID, 5)
+	if err != nil {
+		t.Fatalf("RecentMatches() error: %v", err)
+	}
+	if len(got) != 5 || got[0].Score != 16 || !got[4].Won {
+		t.Fatalf("RecentMatches() = %+v, want the 5 matches of the history", got)
+	}
+	for _, m := range got {
+		if m.HasStats {
+			t.Errorf("match %s has stats while FACEIT gave none", m.ID)
+		}
 	}
 	n := 0
 	for _, r := range srv.requestList() {
-		if r == broken {
+		if strings.Contains(r, "/games/cs2/stats") {
 			n++
 		}
 	}
 	if n != maxAttempts {
-		t.Errorf("broken match details asked %d times, want %d", n, maxAttempts)
+		t.Errorf("stats asked %d times, want %d", n, maxAttempts)
+	}
+}
+
+func TestRecentMatchesHistoryFails(t *testing.T) {
+	srv := newFixtureServer(t)
+	srv.setOverride(func(w http.ResponseWriter, r *http.Request) bool {
+		if strings.HasSuffix(r.URL.Path, "/history") {
+			w.WriteHeader(http.StatusForbidden)
+			return true
+		}
+		return false
+	})
+	c, _ := newTestClient(t, srv)
+
+	_, err := c.RecentMatches(context.Background(), testPlayerID, 5)
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != http.StatusForbidden || se.Op != "get history" {
+		t.Errorf("RecentMatches() error = %v, want the history error", err)
 	}
 }
 
@@ -424,8 +559,8 @@ func TestRecentMatchesSkipsUnfinished(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentMatches() error: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != testMatchID || got[0].Score != 16 || got[0].OpponentScore != 19 || got[0].Won {
-		t.Errorf("RecentMatches() = %+v, want only the finished match the player played", got)
+	if len(got) != 1 || got[0].ID != testMatchID || got[0].Score != 16 || got[0].OpponentScore != 19 || got[0].Won || !got[0].HasStats {
+		t.Errorf("RecentMatches() = %+v, want only the finished match the player played, with stats", got)
 	}
 }
 

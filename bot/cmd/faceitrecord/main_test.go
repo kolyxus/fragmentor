@@ -32,8 +32,9 @@ func TestAnonymizer(t *testing.T) {
 		matchID  = "1-9f8e7d6c-1111-4222-8333-abcdefabcdef"
 		steamID  = "76561198012345678"
 	)
+	const avatar = "https://distribution.faceit-cdn.net/images/5e6f7a8b-2222-4333-8444-feedfacecafe.jpg"
 	player := decode(t, `{
-		"player_id": "`+playerID+`", "nickname": "RealNick", "avatar": "https://cdn/x.jpg",
+		"player_id": "`+playerID+`", "nickname": "RealNick", "avatar": "`+avatar+`",
 		"faceit_url": "https://www.faceit.com/{lang}/players/RealNick",
 		"steam_id_64": "`+steamID+`", "new_steam_id": "[U:1:52079950]",
 		"platforms": {"steam": "STEAM_0:0:26039975"}, "friends_ids": ["`+playerID+`"],
@@ -44,7 +45,8 @@ func TestAnonymizer(t *testing.T) {
 		"match_id": "`+matchID+`",
 		"demo_url": ["https://demos/cs2/`+matchID+`-1-1.dem.zst"],
 		"teams": {"faction1": {"faction_id": "`+playerID+`", "leader": "`+playerID+`", "name": "team_RealNick",
-			"roster": [{"player_id": "`+playerID+`", "nickname": "RealNick", "game_player_id": "`+steamID+`"}]}},
+			"roster": [{"player_id": "`+playerID+`", "nickname": "RealNick", "game_player_id": "`+steamID+`", "avatar": "`+avatar+`"},
+				{"player_id": "`+playerID+`", "avatar": "https://avatars.steamstatic.com/0123456789abcdef0123456789abcdef01234567_full.jpg"}]}},
 		"voting": {"map": {"pick": ["de_mirage"], "entities": [{"name": "Mirage", "guid": "de_mirage"}]}}
 	}`)
 
@@ -52,7 +54,7 @@ func TestAnonymizer(t *testing.T) {
 	p := encode(t, a.value("", player))
 	m := encode(t, a.value("", match))
 
-	for _, real := range []string{"RealNick", "SteamName", playerID, "9f8e7d6c", steamID, "52079950", "26039975", "cdn/x.jpg", "2017-05-01"} {
+	for _, real := range []string{"RealNick", "SteamName", playerID, "9f8e7d6c", steamID, "52079950", "26039975", "5e6f7a8b", "steamstatic", "2017-05-01"} {
 		if strings.Contains(p+m, real) {
 			t.Errorf("%q is still there:\n%s\n%s", real, p, m)
 		}
@@ -60,6 +62,7 @@ func TestAnonymizer(t *testing.T) {
 	for _, want := range []string{
 		`"player_id":"00000000-0000-4000-8000-000000000001"`,
 		`"nickname":"player01"`,
+		`"avatar":"https://distribution.faceit-cdn.net/images/avatar-0001.jpg"`,
 		`"faceit_url":"https://www.faceit.com/{lang}/players/player01"`,
 		`"steam_id_64":"76561190000000001"`,
 		`"game_player_name":"player02"`,
@@ -77,6 +80,8 @@ func TestAnonymizer(t *testing.T) {
 		`"name":"team_player01"`,
 		`"nickname":"player01"`,
 		`"game_player_id":"76561190000000001"`,
+		`"avatar":"https://distribution.faceit-cdn.net/images/avatar-0001.jpg"`,
+		`"avatar":""`,
 		`-1-1.dem.zst`,
 		`"name":"Mirage"`,
 		`"pick":["de_mirage"]`,

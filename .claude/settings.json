@@ -6,7 +6,8 @@
       "Read(**/.env.local)",
       "Read(**/.env.production)",
       "Bash(ssh:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "Bash(make deploy:*)"
     ]
   }
 }

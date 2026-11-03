@@ -25,7 +25,7 @@ func countRows(t *testing.T, s *Store, table string) int {
 
 func TestLinkFaceitAccount(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	t0 := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(time.Hour)
 	if _, err := s.JoinWaitlist(ctx, User{TelegramID: 42, Username: "old", Language: "ru"}, t0); err != nil {
@@ -60,7 +60,7 @@ func TestLinkFaceitAccount(t *testing.T) {
 
 func TestLinkFaceitAccountReplaces(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	t0 := time.Unix(1000, 0).UTC()
 
 	for i, acc := range []FaceitAccount{accountA, accountB} {
@@ -85,7 +85,7 @@ func TestLinkFaceitAccountReplaces(t *testing.T) {
 
 func TestLinkFaceitAccountCreatesUserOffWaitlist(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	now := time.Unix(5000, 0).UTC()
 
 	if err := s.LinkFaceitAccount(ctx, User{TelegramID: 7, Language: "en"}, accountA, now); err != nil {
@@ -104,7 +104,7 @@ func TestLinkFaceitAccountCreatesUserOffWaitlist(t *testing.T) {
 }
 
 func TestFaceitAccountNotFound(t *testing.T) {
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	if _, err := s.JoinWaitlist(context.Background(), User{TelegramID: 1, Language: "ru"}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestFaceitAccountNotFound(t *testing.T) {
 
 func TestSameFaceitAccountForTwoUsers(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	for _, id := range []int64{1, 2} {
 		if err := s.LinkFaceitAccount(ctx, User{TelegramID: id, Language: "ru"}, accountA, time.Now()); err != nil {
 			t.Fatalf("LinkFaceitAccount(%d) error: %v", id, err)
@@ -130,7 +130,7 @@ func TestSameFaceitAccountForTwoUsers(t *testing.T) {
 
 func TestDeletingUserDeletesLink(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	if err := s.LinkFaceitAccount(ctx, User{TelegramID: 42, Language: "ru"}, accountA, time.Now()); err != nil {
 		t.Fatal(err)
 	}

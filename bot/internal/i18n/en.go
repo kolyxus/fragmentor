@@ -57,12 +57,14 @@ Level %d · %d ELO`,
 
 	MatchesEmpty: `%s has no finished CS2 matches on FACEIT yet.`,
 
-	MatchesHeader: `Latest matches of %s (times in UTC):`,
+	MatchesHeader: `Latest matches of %s:`,
 
-	MatchWin:        "win",
-	MatchLoss:       "loss",
-	MatchNoMap:      "unknown map",
+	MatchStats:      "K/D/A %d/%d/%d · ADR %d · HS %d%%",
 	MatchTimeLayout: "Jan 2 15:04",
+
+	TimezoneButton: "🕓 Time zone",
+	TimezoneAsk:    `Tap the time your clock shows now`,
+	TimezoneSaved:  `Time zone saved.`,
 
 	CommandStart:   "Join the beta waitlist",
 	CommandLink:    "Link your FACEIT nickname",

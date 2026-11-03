@@ -17,6 +17,9 @@ type Player struct {
 	ID       string // FACEIT player ID, a UUID
 	Nickname string
 	Country  string // ISO 3166-1 code as FACEIT has it, lower case
+	// Avatar is the link to the player's picture on the FACEIT CDN, empty if
+	// the player has none or the link points elsewhere.
+	Avatar string
 
 	// HasCS2 is false for an account that never played CS2; the fields
 	// below are empty then.
@@ -30,6 +33,7 @@ type playerJSON struct {
 	PlayerID  string `json:"player_id"`
 	Nickname  string `json:"nickname"`
 	Country   string `json:"country"`
+	Avatar    string `json:"avatar"`
 	SteamID64 string `json:"steam_id_64"`
 	Games     map[string]struct {
 		Elo          int    `json:"faceit_elo"`
@@ -39,7 +43,7 @@ type playerJSON struct {
 }
 
 func (p playerJSON) player() Player {
-	out := Player{ID: p.PlayerID, Nickname: p.Nickname, Country: strings.ToLower(p.Country)}
+	out := Player{ID: p.PlayerID, Nickname: p.Nickname, Country: strings.ToLower(p.Country), Avatar: avatarURL(p.Avatar)}
 	if g, ok := p.Games[GameCS2]; ok {
 		out.HasCS2 = true
 		out.SkillLevel = g.SkillLevel
@@ -93,6 +97,16 @@ func (c *Client) Player(ctx context.Context, playerID string) (Player, error) {
 		return Player{}, err
 	}
 	return p.player(), nil
+}
+
+// avatarURL returns link if it is an https link to the FACEIT CDN, where
+// FACEIT keeps the avatars, and "" otherwise.
+func avatarURL(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || u.Scheme != "https" || u.User != nil || !strings.HasSuffix(strings.ToLower(u.Hostname()), ".faceit-cdn.net") {
+		return ""
+	}
+	return link
 }
 
 var (

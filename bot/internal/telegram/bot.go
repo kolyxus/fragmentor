@@ -40,6 +40,8 @@ type Users interface {
 	JoinWaitlist(ctx context.Context, u storage.User, now time.Time) (joined bool, err error)
 	LinkFaceitAccount(ctx context.Context, u storage.User, acc storage.FaceitAccount, now time.Time) error
 	FaceitAccount(ctx context.Context, telegramID int64) (storage.FaceitAccount, error)
+	UTCOffset(ctx context.Context, telegramID int64) (minutes int, ok bool, err error)
+	SetUTCOffset(ctx context.Context, u storage.User, minutes int, now time.Time) error
 }
 
 // Faceit is the FACEIT Data API the handlers need.
@@ -85,6 +87,7 @@ func New(token string, users Users, fc Faceit, log *slog.Logger, opts ...bot.Opt
 	api.RegisterHandler(bot.HandlerTypeMessageText, "matches", bot.MatchTypeCommandStartOnly, b.handle("matches", b.matches))
 	api.RegisterHandler(bot.HandlerTypeMessageText, "help", bot.MatchTypeCommandStartOnly, b.handle("help", b.help))
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, linkButtonPrefix, bot.MatchTypePrefix, b.handleButton("link", b.linkButton))
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, tzButtonPrefix, bot.MatchTypePrefix, b.handleButton("timezone", b.timezoneButton))
 	b.api = api
 	return b, nil
 }

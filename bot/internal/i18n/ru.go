@@ -57,12 +57,14 @@ var ru = Messages{
 
 	MatchesEmpty: `У %s пока нет сыгранных матчей CS2 на FACEIT.`,
 
-	MatchesHeader: `Последние матчи %s (время московское):`,
+	MatchesHeader: `Последние матчи %s:`,
 
-	MatchWin:        "победа",
-	MatchLoss:       "поражение",
-	MatchNoMap:      "карта неизвестна",
+	MatchStats:      "У/С/А %d/%d/%d · ADR %d · HS %d%%",
 	MatchTimeLayout: "02.01 15:04",
+
+	TimezoneButton: "🕓 Часовой пояс",
+	TimezoneAsk:    `Нажми на время, которое сейчас на твоих часах`,
+	TimezoneSaved:  `Часовой пояс сохранён.`,
 
 	CommandStart:   "Встать в очередь на бету",
 	CommandLink:    "Привязать ник FACEIT",

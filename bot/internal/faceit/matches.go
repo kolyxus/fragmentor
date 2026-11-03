@@ -386,30 +386,109 @@ func (r *statsReader) raw() map[string]string {
 	return out
 }
 
+// PlayerMatchStats is a player's scoreboard line in one match, as the list of
+// the player's match stats has it.
+type PlayerMatchStats struct {
+	MatchID      string
+	Map          string // like "de_mirage"
+	Kills        int
+	Deaths       int
+	Assists      int
+	Headshots    int
+	HeadshotsPct int // headshot kills per 100 kills, rounded by FACEIT
+	MVPs         int
+	ADR          float64
+	Won          bool
+}
+
+type playerMatchStatsJSON struct {
+	Items []struct {
+		Stats map[string]flexString `json:"stats"`
+	} `json:"items"`
+}
+
+// LatestMatchStats returns the player's stats in their latest limit (1 to 100)
+// CS2 matches, newest first: one request for what would take a match stats
+// request per match. A match FACEIT has not counted yet is missing.
+func (c *Client) LatestMatchStats(ctx context.Context, playerID string, limit int) ([]PlayerMatchStats, error) {
+	if !ValidPlayerID(playerID) {
+		return nil, fmt.Errorf("faceit: get player match stats: invalid player ID")
+	}
+	query := url.Values{"limit": {strconv.Itoa(min(max(limit, 1), 100))}}
+	var resp playerMatchStatsJSON
+	if err := c.get(ctx, "get player match stats", "/players/"+playerID+"/games/"+GameCS2+"/stats", query, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]PlayerMatchStats, 0, len(resp.Items))
+	for _, it := range resp.Items {
+		r := stats(it.Stats)
+		s := PlayerMatchStats{
+			MatchID:      r.text("Match Id"),
+			Map:          r.text("Map"),
+			Kills:        r.int("Kills"),
+			Deaths:       r.int("Deaths"),
+			Assists:      r.int("Assists"),
+			Headshots:    r.int("Headshots"),
+			HeadshotsPct: r.int("Headshots %"),
+			MVPs:         r.int("MVPs"),
+			ADR:          r.float("ADR"),
+			Won:          r.text("Result") == "1",
+		}
+		if r.err != nil {
+			return nil, fmt.Errorf("faceit: get player match stats: %w", r.err)
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
 // MatchSummary is a finished match as one of its players saw it.
 type MatchSummary struct {
 	ID            string
 	StartedAt     time.Time
-	Map           string // like "de_mirage"; empty if the details were not available
-	MapName       string // like "Mirage"
-	Score         int    // rounds won by the player's team
+	Score         int // rounds won by the player's team
 	OpponentScore int
 	Won           bool
+	// HasStats is false when FACEIT has no stats of the match yet; Stats,
+	// with the map, is empty then.
+	HasStats bool
+	Stats    PlayerMatchStats
 }
 
-// historyExtra is how many more matches RecentMatches takes from the history
-// than it returns, in case some of them are not finished.
-const historyExtra = 5
+// recentExtra is how many more matches RecentMatches asks for than it
+// returns: some history entries may be unfinished, and a match may end
+// between the two requests and shift one list against the other.
+const recentExtra = 5
 
 // RecentMatches returns the player's last n (1 to 95) finished CS2 matches,
-// newest first. The score and the result come from the history, the map from
-// the match details, fetched in parallel; a match whose details fail is
-// returned without the map.
+// newest first. The start time, score and result come from the history, the
+// map and the player's stats from LatestMatchStats; both are asked for in
+// parallel and joined by match ID. A match missing from the stats, or every
+// match if the stats request fails, is returned without stats.
 func (c *Client) RecentMatches(ctx context.Context, playerID string, n int) ([]MatchSummary, error) {
-	history, err := c.History(ctx, playerID, n+historyExtra)
-	if err != nil {
-		return nil, err
+	var (
+		history              []HistoryMatch
+		stats                []PlayerMatchStats
+		historyErr, statsErr error
+		wg                   sync.WaitGroup
+	)
+	wg.Go(func() { history, historyErr = c.History(ctx, playerID, n+recentExtra) })
+	wg.Go(func() { stats, statsErr = c.LatestMatchStats(ctx, playerID, n+recentExtra) })
+	wg.Wait()
+	if historyErr != nil {
+		return nil, historyErr
 	}
+	if statsErr != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("faceit: recent matches: %w", err)
+		}
+		c.log.Warn("player match stats unavailable, listing matches without them", "err", statsErr)
+	}
+	byMatch := make(map[string]PlayerMatchStats, len(stats))
+	for _, s := range stats {
+		byMatch[s.MatchID] = s
+	}
+
 	var out []MatchSummary
 	for _, m := range history {
 		faction, ok := m.FactionOf(playerID)
@@ -422,26 +501,11 @@ func (c *Client) RecentMatches(ctx context.Context, playerID string, n int) ([]M
 				s.OpponentScore = score
 			}
 		}
+		s.Stats, s.HasStats = byMatch[m.ID]
 		out = append(out, s)
 		if len(out) == n {
 			break
 		}
-	}
-
-	var wg sync.WaitGroup
-	for i := range out {
-		wg.Go(func() {
-			details, err := c.Match(ctx, out[i].ID)
-			if err != nil {
-				c.log.Warn("match details unavailable, listing the match without the map", "err", err)
-				return
-			}
-			out[i].Map, out[i].MapName = details.Map, details.MapName
-		})
-	}
-	wg.Wait()
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("faceit: recent matches: %w", err)
 	}
 	return out, nil
 }

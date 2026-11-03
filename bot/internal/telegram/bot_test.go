@@ -40,7 +40,7 @@ func newTestBot(t *testing.T, users Users) (*Bot, *fakeAPI) {
 // newTestStore opens a real database in a temporary directory.
 func newTestStore(t *testing.T) (*storage.Store, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "test.db")
+	path := filepath.Join(tempDir(t), "test.db")
 	store, err := storage.Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("storage.Open() error: %v", err)
@@ -89,6 +89,18 @@ func (s *stubUsers) FaceitAccount(context.Context, int64) (storage.FaceitAccount
 		return storage.FaceitAccount{}, s.err
 	}
 	return storage.FaceitAccount{}, storage.ErrNotFound
+}
+
+func (s *stubUsers) UTCOffset(context.Context, int64) (int, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return 0, false, s.err
+}
+
+func (s *stubUsers) SetUTCOffset(context.Context, storage.User, int, time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.err
 }
 
 // privateMessage builds an update with a message from user 42 in a private

@@ -41,7 +41,7 @@ func migrationCount(t *testing.T) int {
 }
 
 func TestOpenMigratesNewDatabase(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested", "dir", "test.db")
+	path := filepath.Join(tempDir(t), "nested", "dir", "test.db")
 	s := openTestStore(t, path)
 
 	v, err := s.SchemaVersion(context.Background())
@@ -67,7 +67,7 @@ func TestOpenMigratesNewDatabase(t *testing.T) {
 }
 
 func TestOpenTwiceAppliesMigrationsOnce(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "test.db")
+	path := filepath.Join(tempDir(t), "test.db")
 	first, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestOpenTwiceAppliesMigrationsOnce(t *testing.T) {
 // TestOpenUpgradesVersion1 opens a database as the build of step 2 left it,
 // with only the users table, as on the server.
 func TestOpenUpgradesVersion1(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "test.db")
+	path := filepath.Join(tempDir(t), "test.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestOpenUpgradesVersion1(t *testing.T) {
 }
 
 func TestOpenRejectsNewerSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "test.db")
+	path := filepath.Join(tempDir(t), "test.db")
 	s, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +207,7 @@ func countUsers(t *testing.T, s *Store) int {
 
 func TestJoinWaitlistRepeatedDoesNotDuplicate(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	t0 := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(48 * time.Hour)
 
@@ -249,7 +249,7 @@ func TestJoinWaitlistRepeatedDoesNotDuplicate(t *testing.T) {
 
 func TestJoinWaitlistSeparateUsers(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	now := time.Now()
 	for _, id := range []int64{1, 2, 1} {
 		if _, err := s.JoinWaitlist(ctx, User{TelegramID: id, Language: "ru"}, now); err != nil {
@@ -263,7 +263,7 @@ func TestJoinWaitlistSeparateUsers(t *testing.T) {
 
 func TestJoinWaitlistKnownUserNotOnWaitlist(t *testing.T) {
 	ctx := context.Background()
-	s := openTestStore(t, filepath.Join(t.TempDir(), "test.db"))
+	s := openTestStore(t, filepath.Join(tempDir(t), "test.db"))
 	_, err := s.db.Exec(`INSERT INTO users (telegram_id, language, created_at) VALUES (7, 'en', 100)`)
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,8 @@
 # Fragmentor bot
 
 Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запись в очередь на бету), `/link` (привязка
-аккаунта FACEIT по нику или ссылке на профиль), `/matches` (последние 5 матчей CS2) и `/help`.
+аккаунта FACEIT по нику или ссылке на профиль), `/matches` (последние 5 матчей CS2 со статистикой
+и выбором часового пояса кнопкой под списком) и `/help`.
 Боевой бот @fragmentor_ai_bot работает на сервере, как его выкатывать — в [DEPLOY.md](DEPLOY.md).
 
 ## Запуск локально
@@ -51,6 +52,7 @@ Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запис
 | `make lint` | падает, если файлам нужен `gofmt`, затем `go vet ./...` |
 | `make build` | собирает `bin/fragmentor` (`bin/fragmentor.exe` на Windows) |
 | `make build-linux` | статический бинарник для сервера `bin/fragmentor-linux-amd64` (`LINUX_ARCH=arm64` — под ARM) |
+| `make deploy` | выкатка на сервер: проверки, сборка, бэкап базы, замена бинарника, перезапуск — раздел 4.1 [DEPLOY.md](DEPLOY.md); запускает только автор |
 
 ## База
 

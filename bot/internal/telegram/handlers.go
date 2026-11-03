@@ -125,24 +125,55 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models
 	return nil
 }
 
-// replaceButtonMessage replaces the text of the message with the pressed
-// button, which also removes its buttons. If the message can no longer be
-// edited, the text comes as a new message.
-func (b *Bot) replaceButtonMessage(ctx context.Context, cq *models.CallbackQuery, text string) error {
+// sendPhoto sends the picture at link, which Telegram downloads itself, with
+// a plain-text caption and, if markup is not nil, buttons.
+func (b *Bot) sendPhoto(ctx context.Context, chatID int64, link, caption string, markup models.ReplyMarkup) error {
+	params := &bot.SendPhotoParams{
+		ChatID:  chatID,
+		Photo:   &models.InputFileString{Data: link},
+		Caption: caption,
+	}
+	if markup != nil {
+		params.ReplyMarkup = markup
+	}
+	if _, err := b.api.SendPhoto(ctx, params); err != nil {
+		return fmt.Errorf("send photo: %w", err)
+	}
+	return nil
+}
+
+// editButtonMessage replaces the text of the message with the pressed button,
+// or its caption if it is a photo, and its buttons with markup; nil markup
+// removes them. If the message can no longer be edited, the text comes as a
+// new message.
+func (b *Bot) editButtonMessage(ctx context.Context, cq *models.CallbackQuery, text string, markup models.ReplyMarkup) error {
 	msg := cq.Message.Message
 	if msg == nil {
 		chat := buttonChat(cq)
 		if chat == nil {
 			return nil
 		}
-		return b.send(ctx, chat.ID, text, nil)
+		return b.send(ctx, chat.ID, text, markup)
 	}
-	_, err := b.api.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:             msg.Chat.ID,
-		MessageID:          msg.ID,
-		Text:               text,
-		LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
-	})
+	var err error
+	if len(msg.Photo) > 0 {
+		params := &bot.EditMessageCaptionParams{ChatID: msg.Chat.ID, MessageID: msg.ID, Caption: text}
+		if markup != nil {
+			params.ReplyMarkup = markup
+		}
+		_, err = b.api.EditMessageCaption(ctx, params)
+	} else {
+		params := &bot.EditMessageTextParams{
+			ChatID:             msg.Chat.ID,
+			MessageID:          msg.ID,
+			Text:               text,
+			LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
+		}
+		if markup != nil {
+			params.ReplyMarkup = markup
+		}
+		_, err = b.api.EditMessageText(ctx, params)
+	}
 	// A second press of the same button would set the same text again.
 	if err != nil && !(errors.Is(err, bot.ErrorBadRequest) && strings.Contains(err.Error(), "message is not modified")) {
 		return fmt.Errorf("edit message: %w", err)

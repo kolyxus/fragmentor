@@ -44,8 +44,9 @@ func commandArgs(text string) string {
 
 // offerLink finds the FACEIT account by the nickname or profile link in input
 // and shows the card with its nickname, level and ELO, and the Yes and No
-// buttons. If the input is wrong, the user may send another one straight
-// away, without /link.
+// buttons: as the caption of the player's avatar, or as text if there is no
+// avatar or Telegram could not take it. If the input is wrong, the user may
+// send another one straight away, without /link.
 func (b *Bot) offerLink(ctx context.Context, msg *models.Message, input string) error {
 	user := msg.From
 	texts := messagesFor(user)
@@ -85,6 +86,15 @@ func (b *Bot) offerLink(ctx context.Context, msg *models.Message, input string) 
 		{Text: texts.LinkYes, CallbackData: linkButtonPrefix + player.ID},
 		{Text: texts.LinkNo, CallbackData: linkButtonNo},
 	}}}
+	if player.Avatar != "" {
+		// Telegram fetches the picture by the link; the bot neither
+		// downloads nor keeps it.
+		err := b.sendPhoto(ctx, msg.Chat.ID, player.Avatar, card, buttons)
+		if err == nil {
+			return nil
+		}
+		b.log.Warn("card with the avatar not sent, sending it as text", "err", err)
+	}
 	return b.send(ctx, msg.Chat.ID, card, buttons)
 }
 
@@ -101,7 +111,7 @@ func (b *Bot) linkButton(ctx context.Context, cq *models.CallbackQuery) error {
 	data := strings.TrimPrefix(cq.Data, linkButtonPrefix)
 	if data == "no" {
 		b.pending.set(cq.From.ID, b.now())
-		return errors.Join(answerErr, b.replaceButtonMessage(ctx, cq, texts.LinkDeclined))
+		return errors.Join(answerErr, b.editButtonMessage(ctx, cq, texts.LinkDeclined, nil))
 	}
 	if !faceit.ValidPlayerID(data) {
 		b.log.Warn("link button with bad data ignored")
@@ -111,7 +121,7 @@ func (b *Bot) linkButton(ctx context.Context, cq *models.CallbackQuery) error {
 	player, err := b.faceit.Player(ctx, data)
 	switch {
 	case errors.Is(err, faceit.ErrNotFound), err == nil && !player.HasCS2:
-		return errors.Join(answerErr, b.replaceButtonMessage(ctx, cq, texts.LinkGone))
+		return errors.Join(answerErr, b.editButtonMessage(ctx, cq, texts.LinkGone, nil))
 	case err != nil:
 		return errors.Join(answerErr, fmt.Errorf("get player: %w", err), b.sendToButtonChat(ctx, cq, texts.FaceitDown))
 	}
@@ -125,7 +135,7 @@ func (b *Bot) linkButton(ctx context.Context, cq *models.CallbackQuery) error {
 	}
 	b.pending.clear(cq.From.ID)
 	b.log.Info("faceit account linked", "lang", lang)
-	return errors.Join(answerErr, b.replaceButtonMessage(ctx, cq, fmt.Sprintf(texts.LinkDone, player.Nickname)))
+	return errors.Join(answerErr, b.editButtonMessage(ctx, cq, fmt.Sprintf(texts.LinkDone, player.Nickname), nil))
 }
 
 // sendToButtonChat sends a new message to the chat of the pressed button.

@@ -135,11 +135,124 @@ func cardButtons(t *testing.T, api *fakeAPI) [][]models.InlineKeyboardButton {
 	if len(calls) == 0 {
 		t.Fatal("no message sent")
 	}
+	return buttonsOf(t, calls[len(calls)-1])
+}
+
+// buttonsOf returns the inline keyboard a Bot API call carries.
+func buttonsOf(t *testing.T, call apiCall) [][]models.InlineKeyboardButton {
+	t.Helper()
 	var markup models.InlineKeyboardMarkup
-	if err := json.Unmarshal([]byte(calls[len(calls)-1].params["reply_markup"]), &markup); err != nil {
-		t.Fatalf("reply_markup %q: %v", calls[len(calls)-1].params["reply_markup"], err)
+	if err := json.Unmarshal([]byte(call.params["reply_markup"]), &markup); err != nil {
+		t.Fatalf("%s reply_markup %q: %v", call.method, call.params["reply_markup"], err)
 	}
 	return markup.InlineKeyboard
+}
+
+// linkButtons are the card buttons for player p.
+func linkButtons(texts i18n.Messages, p faceit.Player) [][]models.InlineKeyboardButton {
+	return [][]models.InlineKeyboardButton{{
+		{Text: texts.LinkYes, CallbackData: "link:" + p.ID},
+		{Text: texts.LinkNo, CallbackData: "link:no"},
+	}}
+}
+
+const testAvatar = "https://distribution.faceit-cdn.net/images/avatar-0001.jpg"
+
+// photoPress is buttonPress under a photo with a caption, like the card with
+// an avatar.
+func photoPress(data, languageCode string) *models.Update {
+	upd := buttonPress(data, languageCode)
+	msg := upd.CallbackQuery.Message.Message
+	msg.Text = ""
+	msg.Caption = "card"
+	msg.Photo = []models.PhotoSize{{FileID: "photo-1", FileUniqueID: "u1", Width: 300, Height: 300}}
+	return upd
+}
+
+// newAvatarBot is newLinkBot where kolyx has an avatar.
+func newAvatarBot(t *testing.T) (*Bot, *fakeAPI, *storage.Store, faceit.Player) {
+	t.Helper()
+	b, api, store, fc := newLinkBot(t)
+	p := playerKolyx
+	p.Avatar = testAvatar
+	fc.players = []faceit.Player{p}
+	return b, api, store, p
+}
+
+func TestLinkCardWithAvatar(t *testing.T) {
+	b, api, store, p := newAvatarBot(t)
+	ru := i18n.For(i18n.RU)
+
+	process(b, privateMessage("/link kolyx", "ru"))
+
+	photos := api.callsTo("sendPhoto")
+	if len(photos) != 1 {
+		t.Fatalf("%d photos sent, want the card", len(photos))
+	}
+	params := photos[0].params
+	if params["photo"] != testAvatar || params["caption"] != card(ru, p) || params["chat_id"] != "42" {
+		t.Errorf("sendPhoto %v, want the avatar with the card as the caption", params)
+	}
+	if _, ok := params["parse_mode"]; ok {
+		t.Errorf("parse_mode = %q, want a plain caption", params["parse_mode"])
+	}
+	if got, want := buttonsOf(t, photos[0]), linkButtons(ru, p); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("buttons %+v, want %+v", got, want)
+	}
+	if texts := api.sentTexts(); len(texts) != 0 {
+		t.Errorf("text messages sent as well: %q", texts)
+	}
+
+	process(b, photoPress("link:"+p.ID, "ru"))
+
+	edits := api.callsTo("editMessageCaption")
+	if got, want := api.editedCaptions(), []string{fmt.Sprintf(ru.LinkDone, "kolyx")}; !slices.Equal(got, want) {
+		t.Fatalf("captions %q, want %q", got, want)
+	}
+	if e := edits[0].params; e["message_id"] != "7" || e["chat_id"] != "42" {
+		t.Errorf("caption edit %v, want the card message", e)
+	}
+	if _, ok := edits[0].params["reply_markup"]; ok {
+		t.Error("the caption edit keeps the buttons")
+	}
+	if n := len(api.callsTo("editMessageText")); n != 0 {
+		t.Errorf("editMessageText called %d times on a photo", n)
+	}
+	if acc, ok := linkedAccount(t, store); !ok || acc.PlayerID != p.ID {
+		t.Errorf("linked %+v, want kolyx", acc)
+	}
+}
+
+func TestLinkCardWithAvatarDeclined(t *testing.T) {
+	b, api, store, _ := newAvatarBot(t)
+
+	process(b, privateMessage("/link kolyx", "en"))
+	process(b, photoPress(linkButtonNo, "en"))
+
+	if got, want := api.editedCaptions(), []string{i18n.For(i18n.EN).LinkDeclined}; !slices.Equal(got, want) {
+		t.Errorf("captions %q, want %q", got, want)
+	}
+	if _, ok := linkedAccount(t, store); ok {
+		t.Error("an account is linked after No")
+	}
+}
+
+func TestLinkCardAvatarRejected(t *testing.T) {
+	b, api, _, p := newAvatarBot(t)
+	api.failPhotos("Bad Request: wrong type of the web page content")
+	ru := i18n.For(i18n.RU)
+
+	process(b, privateMessage("/link kolyx", "ru"))
+
+	if n := len(api.callsTo("sendPhoto")); n != 1 {
+		t.Errorf("sendPhoto called %d times, want 1", n)
+	}
+	if got, want := api.sentTexts(), []string{card(ru, p)}; !slices.Equal(got, want) {
+		t.Fatalf("sent %q, want the card as text", got)
+	}
+	if got, want := cardButtons(t, api), linkButtons(ru, p); !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("buttons %+v, want %+v", got, want)
+	}
 }
 
 func TestLinkShowsCard(t *testing.T) {

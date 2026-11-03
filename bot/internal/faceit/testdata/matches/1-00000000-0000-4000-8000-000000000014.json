@@ -49,14 +49,14 @@
   "status": "FINISHED",
   "teams": {
     "faction1": {
-      "avatar": "",
+      "avatar": "https://assets.faceit-cdn.net/images/avatar-0012.jpg",
       "faction_id": "00000000-0000-4000-8000-000000000018",
       "leader": "00000000-0000-4000-8000-000000000018",
       "name": "team_player24",
       "roster": [
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://assets.faceit-cdn.net/images/avatar-0012.jpg",
           "game_player_id": "76561190000000014",
           "game_player_name": "player31",
           "game_skill_level": 10,
@@ -66,7 +66,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://assets.faceit-cdn.net/images/avatar-0015.jpg",
           "game_player_id": "76561190000000015",
           "game_player_name": "player33",
           "game_skill_level": 10,
@@ -76,7 +76,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://distribution.faceit-cdn.net/images/avatar-0013.jpg",
           "game_player_id": "76561190000000011",
           "game_player_name": "player26",
           "game_skill_level": 10,
@@ -96,7 +96,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://assets.faceit-cdn.net/images/avatar-0014.jpg",
           "game_player_id": "76561190000000012",
           "game_player_name": "player28",
           "game_skill_level": 10,
@@ -120,14 +120,14 @@
       "type": ""
     },
     "faction2": {
-      "avatar": "",
+      "avatar": "https://distribution.faceit-cdn.net/images/avatar-0016.jpg",
       "faction_id": "00000000-0000-4000-8000-000000000021",
       "leader": "00000000-0000-4000-8000-000000000021",
       "name": "team_player34",
       "roster": [
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://distribution.faceit-cdn.net/images/avatar-0016.jpg",
           "game_player_id": "76561190000000017",
           "game_player_name": "player37",
           "game_skill_level": 10,
@@ -137,7 +137,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://distribution.faceit-cdn.net/images/avatar-0018.jpg",
           "game_player_id": "76561190000000019",
           "game_player_name": "player41",
           "game_skill_level": 10,
@@ -147,7 +147,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://distribution.faceit-cdn.net/images/avatar-0017.jpg",
           "game_player_id": "76561190000000018",
           "game_player_name": "player39",
           "game_skill_level": 10,
@@ -157,7 +157,7 @@
         },
         {
           "anticheat_required": true,
-          "avatar": "",
+          "avatar": "https://distribution.faceit-cdn.net/images/avatar-0001.jpg",
           "game_player_id": "76561190000000001",
           "game_player_name": "player02",
           "game_skill_level": 10,

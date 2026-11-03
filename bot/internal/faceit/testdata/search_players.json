@@ -2,7 +2,7 @@
   "end": 5,
   "items": [
     {
-      "avatar": "",
+      "avatar": "https://distribution.faceit-cdn.net/images/avatar-0001.jpg",
       "country": "KP",
       "games": [
         {
@@ -20,7 +20,7 @@
       "verified": false
     },
     {
-      "avatar": "",
+      "avatar": "https://distribution.faceit-cdn.net/images/avatar-0002.jpg",
       "country": "BY",
       "games": [
         {

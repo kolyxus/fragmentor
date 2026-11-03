@@ -76,6 +76,9 @@ func (f *fixtureServer) serve(w http.ResponseWriter, r *http.Request) {
 	case path == "/players/"+testPlayerID+"/history":
 		f.file(w, http.StatusOK, "history.json")
 		return
+	case path == "/players/"+testPlayerID+"/games/cs2/stats":
+		f.file(w, http.StatusOK, "player_match_stats.json")
+		return
 	case strings.HasPrefix(path, "/matches/"):
 		id, isStats := strings.CutSuffix(strings.TrimPrefix(path, "/matches/"), "/stats")
 		name := filepath.Join("matches", id+".json")
