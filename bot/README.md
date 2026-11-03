@@ -1,25 +1,27 @@
 # Fragmentor bot
 
-Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запись в очередь на бету) и `/help`.
+Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запись в очередь на бету), `/link` (привязка
+аккаунта FACEIT по нику или ссылке на профиль), `/matches` (последние 5 матчей CS2) и `/help`.
 Боевой бот @fragmentor_ai_bot работает на сервере, как его выкатывать — в [DEPLOY.md](DEPLOY.md).
 
 ## Запуск локально
 
 Нужны Go 1.27+ и, по желанию, GNU make. Все команды — из папки `bot/`.
 
-1. Скопировать шаблон настроек и вписать токен **dev-бота** (отдельный бот из BotFather):
+1. Скопировать шаблон настроек и вписать токен **dev-бота** (отдельный бот из BotFather)
+   и ключ FACEIT Data API:
    ```
    cp .env.example .env        # Windows: copy .env.example .env
    ```
-   Для этого шага нужна только `TELEGRAM_DEV_BOT_TOKEN`. Боевой токен локально не нужен:
+   Нужны `TELEGRAM_DEV_BOT_TOKEN` и `FACEIT_API_KEY`. Боевой токен локально не нужен:
    он хранится только на сервере.
 2. Запустить:
    ```
    make run                    # или: go run ./cmd/bot
    ```
    В первой строке лога — `dev_bot=true`, ниже — ник dev-бота в `telegram bot authorized`.
-3. Написать dev-боту `/start` и `/help`. Язык ответа зависит от `language_code` пользователя:
-   русский для `ru`, английский для всех остальных.
+3. Написать dev-боту `/start`, `/help`, `/link <ник>` и `/matches`. Язык ответа зависит
+   от `language_code` пользователя: русский для `ru`, английский для всех остальных.
 
 Остановка — Ctrl+C: бот перестаёт принимать сообщения, отвечает на начатые и закрывает базу.
 Второй Ctrl+C завершает процесс сразу.
@@ -33,9 +35,10 @@ Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запис
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | — | токен боевого бота, обязательна, если нет dev-токена |
 | `TELEGRAM_DEV_BOT_TOKEN` | — | только локально: токен dev-бота, если задан — важнее `TELEGRAM_BOT_TOKEN` |
+| `FACEIT_API_KEY` | — | server-side ключ FACEIT Data API (developers.faceit.com → App Studio), обязательна |
 | `DATABASE_PATH` | `./data/fragmentor.db` | файл SQLite, папка создаётся сама |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` или `error` |
-| `HTTPS_PROXY` | — | прокси для запросов к Telegram, если `api.telegram.org` недоступен |
+| `HTTPS_PROXY` | — | прокси для запросов к Telegram и FACEIT, если они недоступны |
 
 Остальные переменные из `.env.example` понадобятся в следующих шагах.
 
@@ -54,6 +57,18 @@ Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запис
 SQLite создаётся при первом запуске, миграции из `internal/storage/migrations/` применяются сами.
 Новая таблица — новый файл `NNNN_name.sql` со следующим номером; применённые файлы не редактируем.
 Сбросить локальную базу — удалить папку `data/`.
+
+## Фикстуры FACEIT
+
+Тесты клиента FACEIT (`internal/faceit`) ходят не в FACEIT, а в `httptest` с записанными ответами
+из `internal/faceit/testdata/`. Перезаписать их, если FACEIT поменял формат:
+
+```
+go run ./cmd/faceitrecord -nickname <ник> [-match <match_id>]...
+```
+
+Утилита берёт ключ из `.env`, заменяет ники, ID и SteamID подставными и не пишет файлы, если
+что-то из настоящих значений осталось. Подробности — в `docs/notes/faceit-data-api.md`.
 
 ## Подводные камни
 

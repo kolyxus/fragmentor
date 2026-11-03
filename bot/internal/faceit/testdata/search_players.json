@@ -1,0 +1,42 @@
+{
+  "end": 5,
+  "items": [
+    {
+      "avatar": "",
+      "country": "KP",
+      "games": [
+        {
+          "name": "cs2",
+          "skill_level": "0"
+        },
+        {
+          "name": "csgo",
+          "skill_level": "0"
+        }
+      ],
+      "nickname": "player01",
+      "player_id": "00000000-0000-4000-8000-000000000001",
+      "status": "",
+      "verified": false
+    },
+    {
+      "avatar": "",
+      "country": "BY",
+      "games": [
+        {
+          "name": "csgo",
+          "skill_level": "0"
+        },
+        {
+          "name": "cs2",
+          "skill_level": "0"
+        }
+      ],
+      "nickname": "player05",
+      "player_id": "00000000-0000-4000-8000-000000000002",
+      "status": "",
+      "verified": false
+    }
+  ],
+  "start": 0
+}

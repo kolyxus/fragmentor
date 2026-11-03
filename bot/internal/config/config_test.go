@@ -77,6 +77,13 @@ func TestParseDotEnvErrorsHideLineContent(t *testing.T) {
 }
 
 func TestParse(t *testing.T) {
+	// required holds the variables every valid config needs.
+	required := map[string]string{"TELEGRAM_BOT_TOKEN": "tok", "FACEIT_API_KEY": "fkey"}
+	with := func(extra map[string]string) map[string]string {
+		env := maps.Clone(required)
+		maps.Copy(env, extra)
+		return env
+	}
 	tests := []struct {
 		name    string
 		env     map[string]string
@@ -85,47 +92,57 @@ func TestParse(t *testing.T) {
 	}{
 		{
 			name: "defaults",
-			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "tok"},
-			want: Config{TelegramToken: "tok", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+			env:  required,
+			want: Config{TelegramToken: "tok", FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
 		},
 		{
 			name: "all set",
-			env:  map[string]string{"TELEGRAM_BOT_TOKEN": " tok ", "DATABASE_PATH": "x.db", "LOG_LEVEL": "debug"},
-			want: Config{TelegramToken: "tok", DatabasePath: "x.db", LogLevel: slog.LevelDebug},
+			env:  map[string]string{"TELEGRAM_BOT_TOKEN": " tok ", "FACEIT_API_KEY": " fkey ", "DATABASE_PATH": "x.db", "LOG_LEVEL": "debug"},
+			want: Config{TelegramToken: "tok", FaceitAPIKey: "fkey", DatabasePath: "x.db", LogLevel: slog.LevelDebug},
 		},
 		{
 			name: "level is case-insensitive",
-			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "tok", "LOG_LEVEL": "WARN"},
-			want: Config{TelegramToken: "tok", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelWarn},
+			env:  with(map[string]string{"LOG_LEVEL": "WARN"}),
+			want: Config{TelegramToken: "tok", FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelWarn},
 		},
 		{
 			name: "dev token wins",
-			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": " dev "},
-			want: Config{TelegramToken: "dev", DevBot: true, DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+			env:  with(map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": " dev "}),
+			want: Config{TelegramToken: "dev", DevBot: true, FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
 		},
 		{
 			name: "dev token alone is enough",
-			env:  map[string]string{"TELEGRAM_DEV_BOT_TOKEN": "dev"},
-			want: Config{TelegramToken: "dev", DevBot: true, DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+			env:  map[string]string{"TELEGRAM_DEV_BOT_TOKEN": "dev", "FACEIT_API_KEY": "fkey"},
+			want: Config{TelegramToken: "dev", DevBot: true, FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
 		},
 		{
 			name: "blank dev token is ignored",
-			env:  map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": "  "},
-			want: Config{TelegramToken: "prod", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+			env:  with(map[string]string{"TELEGRAM_BOT_TOKEN": "prod", "TELEGRAM_DEV_BOT_TOKEN": "  "}),
+			want: Config{TelegramToken: "prod", FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
 		},
 		{
 			name:    "missing token",
-			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "  "},
+			env:     with(map[string]string{"TELEGRAM_BOT_TOKEN": "  "}),
 			wantErr: "TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)",
 		},
 		{
 			name:    "both tokens blank",
-			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_DEV_BOT_TOKEN": " "},
+			env:     with(map[string]string{"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_DEV_BOT_TOKEN": " "}),
 			wantErr: "TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)",
 		},
 		{
+			name:    "missing faceit key",
+			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "tok", "FACEIT_API_KEY": " "},
+			wantErr: "FACEIT_API_KEY is not set",
+		},
+		{
+			name:    "nothing set",
+			env:     nil,
+			wantErr: "TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)\nFACEIT_API_KEY is not set",
+		},
+		{
 			name:    "bad level",
-			env:     map[string]string{"TELEGRAM_BOT_TOKEN": "tok", "LOG_LEVEL": "verbose"},
+			env:     with(map[string]string{"LOG_LEVEL": "verbose"}),
 			wantErr: `invalid LOG_LEVEL "verbose": use debug, info, warn or error`,
 		},
 	}
@@ -151,7 +168,7 @@ func TestParse(t *testing.T) {
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".env")
-	data := "TELEGRAM_BOT_TOKEN=file-token\nDATABASE_PATH=file.db\nLOG_LEVEL=error\n"
+	data := "TELEGRAM_BOT_TOKEN=file-token\nFACEIT_API_KEY=file-key\nDATABASE_PATH=file.db\nLOG_LEVEL=error\n"
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +178,7 @@ func TestLoad(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load() error: %v", err)
 		}
-		want := Config{TelegramToken: "file-token", DatabasePath: "file.db", LogLevel: slog.LevelError}
+		want := Config{TelegramToken: "file-token", FaceitAPIKey: "file-key", DatabasePath: "file.db", LogLevel: slog.LevelError}
 		if cfg != want {
 			t.Errorf("load() = %+v, want %+v", cfg, want)
 		}
@@ -179,7 +196,7 @@ func TestLoad(t *testing.T) {
 
 	t.Run("dev token only in file", func(t *testing.T) {
 		devPath := filepath.Join(dir, "dev.env")
-		if err := os.WriteFile(devPath, []byte("TELEGRAM_DEV_BOT_TOKEN=dev-token\n"), 0o600); err != nil {
+		if err := os.WriteFile(devPath, []byte("TELEGRAM_DEV_BOT_TOKEN=dev-token\nFACEIT_API_KEY=k\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		cfg, err := load(devPath, mapLookup(nil))
@@ -192,12 +209,12 @@ func TestLoad(t *testing.T) {
 	})
 
 	t.Run("missing file", func(t *testing.T) {
-		cfg, err := load(filepath.Join(dir, "absent.env"), mapLookup(map[string]string{"TELEGRAM_BOT_TOKEN": "env-token"}))
+		cfg, err := load(filepath.Join(dir, "absent.env"), mapLookup(map[string]string{"TELEGRAM_BOT_TOKEN": "env-token", "FACEIT_API_KEY": "env-key"}))
 		if err != nil {
 			t.Fatalf("load() error: %v", err)
 		}
-		if cfg.TelegramToken != "env-token" {
-			t.Errorf("TelegramToken = %q, want env-token", cfg.TelegramToken)
+		if cfg.TelegramToken != "env-token" || cfg.FaceitAPIKey != "env-key" {
+			t.Errorf("load() = %+v, want the values from env", cfg)
 		}
 	})
 }

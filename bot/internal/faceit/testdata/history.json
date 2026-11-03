@@ -1,0 +1,1448 @@
+{
+  "end": 10,
+  "from": 0,
+  "items": [
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000004",
+      "finished_at": 1793469744,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000004",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000005",
+        "00000000-0000-4000-8000-000000000006",
+        "00000000-0000-4000-8000-000000000007",
+        "00000000-0000-4000-8000-000000000008",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000009",
+        "00000000-0000-4000-8000-000000000010",
+        "00000000-0000-4000-8000-000000000011",
+        "00000000-0000-4000-8000-000000000012",
+        "00000000-0000-4000-8000-000000000013"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 16,
+          "faction2": 19
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1793466205,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player06",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player06",
+              "game_player_id": "76561190000000002",
+              "game_player_name": "player07",
+              "nickname": "player06",
+              "player_id": "00000000-0000-4000-8000-000000000005",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player08",
+              "game_player_id": "76561190000000003",
+              "game_player_name": "player09",
+              "nickname": "player08",
+              "player_id": "00000000-0000-4000-8000-000000000006",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player10",
+              "game_player_id": "76561190000000004",
+              "game_player_name": "player11",
+              "nickname": "player10",
+              "player_id": "00000000-0000-4000-8000-000000000007",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player12",
+              "game_player_id": "76561190000000005",
+              "game_player_name": "player13",
+              "nickname": "player12",
+              "player_id": "00000000-0000-4000-8000-000000000008",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000005",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player14",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player14",
+              "game_player_id": "76561190000000006",
+              "game_player_name": "player15",
+              "nickname": "player14",
+              "player_id": "00000000-0000-4000-8000-000000000009",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player16",
+              "game_player_id": "76561190000000007",
+              "game_player_name": "player17",
+              "nickname": "player16",
+              "player_id": "00000000-0000-4000-8000-000000000010",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player18",
+              "game_player_id": "76561190000000008",
+              "game_player_name": "player19",
+              "nickname": "player18",
+              "player_id": "00000000-0000-4000-8000-000000000011",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player20",
+              "game_player_id": "76561190000000009",
+              "game_player_name": "player21",
+              "nickname": "player20",
+              "player_id": "00000000-0000-4000-8000-000000000012",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player22",
+              "game_player_id": "76561190000000010",
+              "game_player_name": "player23",
+              "nickname": "player22",
+              "player_id": "00000000-0000-4000-8000-000000000013",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000009",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000014",
+      "finished_at": 1792863188,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000014",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000015",
+        "00000000-0000-4000-8000-000000000016",
+        "00000000-0000-4000-8000-000000000017",
+        "00000000-0000-4000-8000-000000000018",
+        "00000000-0000-4000-8000-000000000019",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000020",
+        "00000000-0000-4000-8000-000000000021",
+        "00000000-0000-4000-8000-000000000022",
+        "00000000-0000-4000-8000-000000000023"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 16,
+          "faction2": 12
+        },
+        "winner": "faction1"
+      },
+      "started_at": 1792860184,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player24",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player25",
+              "game_player_id": "76561190000000011",
+              "game_player_name": "player26",
+              "nickname": "player25",
+              "player_id": "00000000-0000-4000-8000-000000000015",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player27",
+              "game_player_id": "76561190000000012",
+              "game_player_name": "player28",
+              "nickname": "player27",
+              "player_id": "00000000-0000-4000-8000-000000000016",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player29",
+              "game_player_id": "76561190000000013",
+              "game_player_name": "player30",
+              "nickname": "player29",
+              "player_id": "00000000-0000-4000-8000-000000000017",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player24",
+              "game_player_id": "76561190000000014",
+              "game_player_name": "player31",
+              "nickname": "player24",
+              "player_id": "00000000-0000-4000-8000-000000000018",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player32",
+              "game_player_id": "76561190000000015",
+              "game_player_name": "player33",
+              "nickname": "player32",
+              "player_id": "00000000-0000-4000-8000-000000000019",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000018",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player34",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player35",
+              "game_player_id": "76561190000000016",
+              "game_player_name": "player36",
+              "nickname": "player35",
+              "player_id": "00000000-0000-4000-8000-000000000020",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player34",
+              "game_player_id": "76561190000000017",
+              "game_player_name": "player37",
+              "nickname": "player34",
+              "player_id": "00000000-0000-4000-8000-000000000021",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player38",
+              "game_player_id": "76561190000000018",
+              "game_player_name": "player39",
+              "nickname": "player38",
+              "player_id": "00000000-0000-4000-8000-000000000022",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player40",
+              "game_player_id": "76561190000000019",
+              "game_player_name": "player41",
+              "nickname": "player40",
+              "player_id": "00000000-0000-4000-8000-000000000023",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000021",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000024",
+      "finished_at": 1792859955,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000024",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000025",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000026",
+        "00000000-0000-4000-8000-000000000027",
+        "00000000-0000-4000-8000-000000000028",
+        "00000000-0000-4000-8000-000000000029",
+        "00000000-0000-4000-8000-000000000030",
+        "00000000-0000-4000-8000-000000000031",
+        "00000000-0000-4000-8000-000000000032",
+        "00000000-0000-4000-8000-000000000033"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 6,
+          "faction2": 13
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1792857963,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player42",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player43",
+              "game_player_id": "76561190000000020",
+              "game_player_name": "player43",
+              "nickname": "player43",
+              "player_id": "00000000-0000-4000-8000-000000000025",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player44",
+              "game_player_id": "76561190000000021",
+              "game_player_name": "player44",
+              "nickname": "player44",
+              "player_id": "00000000-0000-4000-8000-000000000026",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player42",
+              "game_player_id": "76561190000000022",
+              "game_player_name": "player45",
+              "nickname": "player42",
+              "player_id": "00000000-0000-4000-8000-000000000027",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player46",
+              "game_player_id": "76561190000000023",
+              "game_player_name": "player47",
+              "nickname": "player46",
+              "player_id": "00000000-0000-4000-8000-000000000028",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000027",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player48",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player48",
+              "game_player_id": "76561190000000024",
+              "game_player_name": "player49",
+              "nickname": "player48",
+              "player_id": "00000000-0000-4000-8000-000000000029",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player50",
+              "game_player_id": "76561190000000025",
+              "game_player_name": "player51",
+              "nickname": "player50",
+              "player_id": "00000000-0000-4000-8000-000000000030",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player52",
+              "game_player_id": "76561190000000026",
+              "game_player_name": "player53",
+              "nickname": "player52",
+              "player_id": "00000000-0000-4000-8000-000000000031",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player54",
+              "game_player_id": "76561190000000027",
+              "game_player_name": "player55",
+              "nickname": "player54",
+              "player_id": "00000000-0000-4000-8000-000000000032",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player56",
+              "game_player_id": "76561190000000028",
+              "game_player_name": "player57",
+              "nickname": "player56",
+              "player_id": "00000000-0000-4000-8000-000000000033",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000029",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000034",
+      "finished_at": 1792691004,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000034",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000035",
+        "00000000-0000-4000-8000-000000000036",
+        "00000000-0000-4000-8000-000000000037",
+        "00000000-0000-4000-8000-000000000038",
+        "00000000-0000-4000-8000-000000000039",
+        "00000000-0000-4000-8000-000000000040",
+        "00000000-0000-4000-8000-000000000041",
+        "00000000-0000-4000-8000-000000000042",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000043"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 13,
+          "faction2": 9
+        },
+        "winner": "faction1"
+      },
+      "started_at": 1792688728,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player58",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player59",
+              "game_player_id": "76561190000000029",
+              "game_player_name": "player60",
+              "nickname": "player59",
+              "player_id": "00000000-0000-4000-8000-000000000035",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player58",
+              "game_player_id": "76561190000000030",
+              "game_player_name": "player61",
+              "nickname": "player58",
+              "player_id": "00000000-0000-4000-8000-000000000036",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player62",
+              "game_player_id": "76561190000000031",
+              "game_player_name": "player63",
+              "nickname": "player62",
+              "player_id": "00000000-0000-4000-8000-000000000037",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player64",
+              "game_player_id": "76561190000000032",
+              "game_player_name": "player65",
+              "nickname": "player64",
+              "player_id": "00000000-0000-4000-8000-000000000038",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player66",
+              "game_player_id": "76561190000000033",
+              "game_player_name": "player67",
+              "nickname": "player66",
+              "player_id": "00000000-0000-4000-8000-000000000039",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000036",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player68",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player69",
+              "game_player_id": "76561190000000034",
+              "game_player_name": "player69",
+              "nickname": "player69",
+              "player_id": "00000000-0000-4000-8000-000000000040",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player68",
+              "game_player_id": "76561190000000035",
+              "game_player_name": "player70",
+              "nickname": "player68",
+              "player_id": "00000000-0000-4000-8000-000000000041",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player71",
+              "game_player_id": "76561190000000036",
+              "game_player_name": "player72",
+              "nickname": "player71",
+              "player_id": "00000000-0000-4000-8000-000000000042",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player73",
+              "game_player_id": "76561190000000037",
+              "game_player_name": "player74",
+              "nickname": "player73",
+              "player_id": "00000000-0000-4000-8000-000000000043",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000041",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000044",
+      "finished_at": 1792428995,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000044",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000045",
+        "00000000-0000-4000-8000-000000000046",
+        "00000000-0000-4000-8000-000000000047",
+        "00000000-0000-4000-8000-000000000048",
+        "00000000-0000-4000-8000-000000000049",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000050",
+        "00000000-0000-4000-8000-000000000051",
+        "00000000-0000-4000-8000-000000000052",
+        "00000000-0000-4000-8000-000000000053"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 10,
+          "faction2": 13
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1792426712,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player75",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player75",
+              "game_player_id": "76561190000000038",
+              "game_player_name": "player76",
+              "nickname": "player75",
+              "player_id": "00000000-0000-4000-8000-000000000045",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player77",
+              "game_player_id": "76561190000000039",
+              "game_player_name": "player77",
+              "nickname": "player77",
+              "player_id": "00000000-0000-4000-8000-000000000046",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player78",
+              "game_player_id": "76561190000000040",
+              "game_player_name": "player79",
+              "nickname": "player78",
+              "player_id": "00000000-0000-4000-8000-000000000047",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player80",
+              "game_player_id": "76561190000000041",
+              "game_player_name": "player81",
+              "nickname": "player80",
+              "player_id": "00000000-0000-4000-8000-000000000048",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player82",
+              "game_player_id": "76561190000000042",
+              "game_player_name": "player83",
+              "nickname": "player82",
+              "player_id": "00000000-0000-4000-8000-000000000049",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000045",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player84",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player84",
+              "game_player_id": "76561190000000043",
+              "game_player_name": "player85",
+              "nickname": "player84",
+              "player_id": "00000000-0000-4000-8000-000000000050",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player86",
+              "game_player_id": "76561190000000044",
+              "game_player_name": "player87",
+              "nickname": "player86",
+              "player_id": "00000000-0000-4000-8000-000000000051",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player88",
+              "game_player_id": "76561190000000045",
+              "game_player_name": "player89",
+              "nickname": "player88",
+              "player_id": "00000000-0000-4000-8000-000000000052",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player90",
+              "game_player_id": "76561190000000046",
+              "game_player_name": "player91",
+              "nickname": "player90",
+              "player_id": "00000000-0000-4000-8000-000000000053",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000050",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000054",
+      "finished_at": 1791827336,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000054",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000055",
+        "00000000-0000-4000-8000-000000000056",
+        "00000000-0000-4000-8000-000000000057",
+        "00000000-0000-4000-8000-000000000058",
+        "00000000-0000-4000-8000-000000000059",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000060",
+        "00000000-0000-4000-8000-000000000061",
+        "00000000-0000-4000-8000-000000000062",
+        "00000000-0000-4000-8000-000000000063"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 11,
+          "faction2": 13
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1791824814,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player92",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player92",
+              "game_player_id": "76561190000000047",
+              "game_player_name": "player93",
+              "nickname": "player92",
+              "player_id": "00000000-0000-4000-8000-000000000055",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player94",
+              "game_player_id": "76561190000000048",
+              "game_player_name": "player95",
+              "nickname": "player94",
+              "player_id": "00000000-0000-4000-8000-000000000056",
+              "skill_level": 8
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player96",
+              "game_player_id": "76561190000000049",
+              "game_player_name": "player97",
+              "nickname": "player96",
+              "player_id": "00000000-0000-4000-8000-000000000057",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player98",
+              "game_player_id": "76561190000000050",
+              "game_player_name": "player99",
+              "nickname": "player98",
+              "player_id": "00000000-0000-4000-8000-000000000058",
+              "skill_level": 0
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player100",
+              "game_player_id": "76561190000000051",
+              "game_player_name": "player101",
+              "nickname": "player100",
+              "player_id": "00000000-0000-4000-8000-000000000059",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000055",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player102",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player103",
+              "game_player_id": "76561190000000052",
+              "game_player_name": "player104",
+              "nickname": "player103",
+              "player_id": "00000000-0000-4000-8000-000000000060",
+              "skill_level": 7
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player102",
+              "game_player_id": "76561190000000053",
+              "game_player_name": "player105",
+              "nickname": "player102",
+              "player_id": "00000000-0000-4000-8000-000000000061",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player106",
+              "game_player_id": "76561190000000054",
+              "game_player_name": "player107",
+              "nickname": "player106",
+              "player_id": "00000000-0000-4000-8000-000000000062",
+              "skill_level": 7
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player108",
+              "game_player_id": "76561190000000055",
+              "game_player_name": "player109",
+              "nickname": "player108",
+              "player_id": "00000000-0000-4000-8000-000000000063",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000061",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000064",
+      "finished_at": 1791654025,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000064",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000065",
+        "00000000-0000-4000-8000-000000000066",
+        "00000000-0000-4000-8000-000000000067",
+        "00000000-0000-4000-8000-000000000068",
+        "00000000-0000-4000-8000-000000000069",
+        "00000000-0000-4000-8000-000000000070",
+        "00000000-0000-4000-8000-000000000071",
+        "00000000-0000-4000-8000-000000000072",
+        "00000000-0000-4000-8000-000000000073"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 11,
+          "faction2": 13
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1791651447,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player110",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player110",
+              "game_player_id": "76561190000000056",
+              "game_player_name": "player110",
+              "nickname": "player110",
+              "player_id": "00000000-0000-4000-8000-000000000065",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player111",
+              "game_player_id": "76561190000000057",
+              "game_player_name": "player112",
+              "nickname": "player111",
+              "player_id": "00000000-0000-4000-8000-000000000066",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player113",
+              "game_player_id": "76561190000000058",
+              "game_player_name": "player114",
+              "nickname": "player113",
+              "player_id": "00000000-0000-4000-8000-000000000067",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player115",
+              "game_player_id": "76561190000000059",
+              "game_player_name": "player116",
+              "nickname": "player115",
+              "player_id": "00000000-0000-4000-8000-000000000068",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000065",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player117",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player117",
+              "game_player_id": "76561190000000060",
+              "game_player_name": "player118",
+              "nickname": "player117",
+              "player_id": "00000000-0000-4000-8000-000000000069",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player119",
+              "game_player_id": "76561190000000061",
+              "game_player_name": "player120",
+              "nickname": "player119",
+              "player_id": "00000000-0000-4000-8000-000000000070",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player121",
+              "game_player_id": "76561190000000062",
+              "game_player_name": "player122",
+              "nickname": "player121",
+              "player_id": "00000000-0000-4000-8000-000000000071",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player123",
+              "game_player_id": "76561190000000063",
+              "game_player_name": "player124",
+              "nickname": "player123",
+              "player_id": "00000000-0000-4000-8000-000000000072",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player125",
+              "game_player_id": "76561190000000064",
+              "game_player_name": "player126",
+              "nickname": "player125",
+              "player_id": "00000000-0000-4000-8000-000000000073",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000069",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000074",
+      "finished_at": 1791118848,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000074",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000075",
+        "00000000-0000-4000-8000-000000000076",
+        "00000000-0000-4000-8000-000000000077",
+        "00000000-0000-4000-8000-000000000078",
+        "00000000-0000-4000-8000-000000000079",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000060",
+        "00000000-0000-4000-8000-000000000080",
+        "00000000-0000-4000-8000-000000000081",
+        "00000000-0000-4000-8000-000000000082"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 13,
+          "faction2": 9
+        },
+        "winner": "faction1"
+      },
+      "started_at": 1791116362,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player127",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player128",
+              "game_player_id": "76561190000000065",
+              "game_player_name": "player129",
+              "nickname": "player128",
+              "player_id": "00000000-0000-4000-8000-000000000075",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player127",
+              "game_player_id": "76561190000000066",
+              "game_player_name": "player130",
+              "nickname": "player127",
+              "player_id": "00000000-0000-4000-8000-000000000076",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player131",
+              "game_player_id": "76561190000000067",
+              "game_player_name": "player132",
+              "nickname": "player131",
+              "player_id": "00000000-0000-4000-8000-000000000077",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player133",
+              "game_player_id": "76561190000000068",
+              "game_player_name": "player134",
+              "nickname": "player133",
+              "player_id": "00000000-0000-4000-8000-000000000078",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player135",
+              "game_player_id": "76561190000000069",
+              "game_player_name": "player136",
+              "nickname": "player135",
+              "player_id": "00000000-0000-4000-8000-000000000079",
+              "skill_level": 9
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000076",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player137",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player103",
+              "game_player_id": "76561190000000052",
+              "game_player_name": "player104",
+              "nickname": "player103",
+              "player_id": "00000000-0000-4000-8000-000000000060",
+              "skill_level": 7
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player138",
+              "game_player_id": "76561190000000070",
+              "game_player_name": "player138",
+              "nickname": "player138",
+              "player_id": "00000000-0000-4000-8000-000000000080",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player137",
+              "game_player_id": "76561190000000071",
+              "game_player_name": "player137",
+              "nickname": "player137",
+              "player_id": "00000000-0000-4000-8000-000000000081",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player139",
+              "game_player_id": "76561190000000072",
+              "game_player_name": "player140",
+              "nickname": "player139",
+              "player_id": "00000000-0000-4000-8000-000000000082",
+              "skill_level": 0
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000081",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000083",
+      "finished_at": 1791027796,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000083",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000084",
+        "00000000-0000-4000-8000-000000000085",
+        "00000000-0000-4000-8000-000000000086",
+        "00000000-0000-4000-8000-000000000087",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000088",
+        "00000000-0000-4000-8000-000000000089",
+        "00000000-0000-4000-8000-000000000090",
+        "00000000-0000-4000-8000-000000000091",
+        "00000000-0000-4000-8000-000000000092"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 1,
+          "faction2": 13
+        },
+        "winner": "faction2"
+      },
+      "started_at": 1791026325,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player141",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player142",
+              "game_player_id": "76561190000000073",
+              "game_player_name": "player143",
+              "nickname": "player142",
+              "player_id": "00000000-0000-4000-8000-000000000084",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player141",
+              "game_player_id": "76561190000000074",
+              "game_player_name": "player144",
+              "nickname": "player141",
+              "player_id": "00000000-0000-4000-8000-000000000085",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player145",
+              "game_player_id": "76561190000000075",
+              "game_player_name": "player146",
+              "nickname": "player145",
+              "player_id": "00000000-0000-4000-8000-000000000086",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player147",
+              "game_player_id": "76561190000000076",
+              "game_player_name": "player148",
+              "nickname": "player147",
+              "player_id": "00000000-0000-4000-8000-000000000087",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000085",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player149",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player150",
+              "game_player_id": "76561190000000077",
+              "game_player_name": "player151",
+              "nickname": "player150",
+              "player_id": "00000000-0000-4000-8000-000000000088",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player152",
+              "game_player_id": "76561190000000078",
+              "game_player_name": "player153",
+              "nickname": "player152",
+              "player_id": "00000000-0000-4000-8000-000000000089",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player154",
+              "game_player_id": "76561190000000079",
+              "game_player_name": "player155",
+              "nickname": "player154",
+              "player_id": "00000000-0000-4000-8000-000000000090",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player149",
+              "game_player_id": "76561190000000080",
+              "game_player_name": "player156",
+              "nickname": "player149",
+              "player_id": "00000000-0000-4000-8000-000000000091",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player157",
+              "game_player_id": "76561190000000081",
+              "game_player_name": "player158",
+              "nickname": "player157",
+              "player_id": "00000000-0000-4000-8000-000000000092",
+              "skill_level": 10
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000091",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    },
+    {
+      "competition_id": "00000000-0000-4000-8000-000000000003",
+      "competition_name": "Europe 5v5 Queue",
+      "competition_type": "matchmaking",
+      "faceit_url": "https://www.faceit.com/{lang}/cs2/room/1-00000000-0000-4000-8000-000000000093",
+      "finished_at": 1791016050,
+      "game_id": "cs2",
+      "game_mode": "5v5",
+      "match_id": "1-00000000-0000-4000-8000-000000000093",
+      "match_type": "",
+      "max_players": 10,
+      "organizer_id": "faceit",
+      "playing_players": [
+        "00000000-0000-4000-8000-000000000094",
+        "00000000-0000-4000-8000-000000000095",
+        "00000000-0000-4000-8000-000000000096",
+        "00000000-0000-4000-8000-000000000097",
+        "00000000-0000-4000-8000-000000000098",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000060",
+        "00000000-0000-4000-8000-000000000099",
+        "00000000-0000-4000-8000-000000000100",
+        "00000000-0000-4000-8000-000000000101"
+      ],
+      "region": "EU",
+      "results": {
+        "score": {
+          "faction1": 13,
+          "faction2": 10
+        },
+        "winner": "faction1"
+      },
+      "started_at": 1791013159,
+      "status": "finished",
+      "teams": {
+        "faction1": {
+          "avatar": "",
+          "nickname": "team_player159",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player159",
+              "game_player_id": "76561190000000082",
+              "game_player_name": "player160",
+              "nickname": "player159",
+              "player_id": "00000000-0000-4000-8000-000000000094",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player161",
+              "game_player_id": "76561190000000083",
+              "game_player_name": "player162",
+              "nickname": "player161",
+              "player_id": "00000000-0000-4000-8000-000000000095",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player163",
+              "game_player_id": "76561190000000084",
+              "game_player_name": "player164",
+              "nickname": "player163",
+              "player_id": "00000000-0000-4000-8000-000000000096",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player165",
+              "game_player_id": "76561190000000085",
+              "game_player_name": "player166",
+              "nickname": "player165",
+              "player_id": "00000000-0000-4000-8000-000000000097",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player167",
+              "game_player_id": "76561190000000086",
+              "game_player_name": "player168",
+              "nickname": "player167",
+              "player_id": "00000000-0000-4000-8000-000000000098",
+              "skill_level": 9
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000094",
+          "type": ""
+        },
+        "faction2": {
+          "avatar": "",
+          "nickname": "team_player169",
+          "players": [
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+              "game_player_id": "76561190000000001",
+              "game_player_name": "player02",
+              "nickname": "player01",
+              "player_id": "00000000-0000-4000-8000-000000000001",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player103",
+              "game_player_id": "76561190000000052",
+              "game_player_name": "player104",
+              "nickname": "player103",
+              "player_id": "00000000-0000-4000-8000-000000000060",
+              "skill_level": 7
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player170",
+              "game_player_id": "76561190000000087",
+              "game_player_name": "player171",
+              "nickname": "player170",
+              "player_id": "00000000-0000-4000-8000-000000000099",
+              "skill_level": 9
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player169",
+              "game_player_id": "76561190000000088",
+              "game_player_name": "player169",
+              "nickname": "player169",
+              "player_id": "00000000-0000-4000-8000-000000000100",
+              "skill_level": 10
+            },
+            {
+              "avatar": "",
+              "faceit_url": "https://www.faceit.com/{lang}/players/player172",
+              "game_player_id": "76561190000000089",
+              "game_player_name": "player173",
+              "nickname": "player172",
+              "player_id": "00000000-0000-4000-8000-000000000101",
+              "skill_level": 6
+            }
+          ],
+          "team_id": "00000000-0000-4000-8000-000000000100",
+          "type": ""
+        }
+      },
+      "teams_size": 5
+    }
+  ],
+  "start": 0,
+  "to": 1793680291
+}

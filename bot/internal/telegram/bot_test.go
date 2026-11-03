@@ -24,10 +24,12 @@ import (
 
 var testNow = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 
+// newTestBot returns a bot talking to a fake Bot API, with FACEIT stubbed
+// by a newStubFaceit; tests that need other players replace b.faceit.
 func newTestBot(t *testing.T, users Users) (*Bot, *fakeAPI) {
 	t.Helper()
 	api := newFakeAPI(t)
-	b, err := New(testToken, users, slog.New(slog.DiscardHandler), bot.WithServerURL(api.URL))
+	b, err := New(testToken, users, newStubFaceit(), slog.New(slog.DiscardHandler), bot.WithServerURL(api.URL))
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
@@ -51,10 +53,12 @@ func newTestStore(t *testing.T) (*storage.Store, string) {
 	return store, path
 }
 
-// stubUsers records the users who joined and can fail on demand.
+// stubUsers records the users who joined and can fail on demand. It has no
+// linked FACEIT accounts.
 type stubUsers struct {
 	mu     sync.Mutex
 	joined []storage.User
+	linked []storage.FaceitAccount
 	err    error
 }
 
@@ -66,6 +70,25 @@ func (s *stubUsers) JoinWaitlist(_ context.Context, u storage.User, _ time.Time)
 	}
 	s.joined = append(s.joined, u)
 	return true, nil
+}
+
+func (s *stubUsers) LinkFaceitAccount(_ context.Context, _ storage.User, acc storage.FaceitAccount, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return s.err
+	}
+	s.linked = append(s.linked, acc)
+	return nil
+}
+
+func (s *stubUsers) FaceitAccount(context.Context, int64) (storage.FaceitAccount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return storage.FaceitAccount{}, s.err
+	}
+	return storage.FaceitAccount{}, storage.ErrNotFound
 }
 
 // privateMessage builds an update with a message from user 42 in a private
@@ -210,13 +233,20 @@ func TestIgnoresEverythingButPrivateMessages(t *testing.T) {
 	noSender.Message.From = nil
 	edited := &models.Update{ID: 2, EditedMessage: privateMessage("/start", "ru").Message}
 	channelPost := &models.Update{ID: 3, ChannelPost: &models.Message{ID: 1, Chat: models.Chat{ID: -100, Type: models.ChatTypeChannel}, Text: "/start"}}
+	groupButton := buttonPress(linkButtonNo, "ru")
+	groupButton.CallbackQuery.Message.Message.Chat.Type = models.ChatTypeGroup
+	inlineButton := buttonPress(linkButtonNo, "ru")
+	inlineButton.CallbackQuery.Message = models.MaybeInaccessibleMessage{}
+	inlineButton.CallbackQuery.InlineMessageID = "inline-1"
 
 	for name, upd := range map[string]*models.Update{
-		"group":        group,
-		"supergroup":   supergroup,
-		"no sender":    noSender,
-		"edited":       edited,
-		"channel post": channelPost,
+		"group":         group,
+		"supergroup":    supergroup,
+		"no sender":     noSender,
+		"edited":        edited,
+		"channel post":  channelPost,
+		"group button":  groupButton,
+		"inline button": inlineButton,
 	} {
 		t.Run(name, func(t *testing.T) {
 			users := &stubUsers{}
@@ -257,7 +287,10 @@ func TestSyncProfile(t *testing.T) {
 	}
 	for code, lang := range map[string]i18n.Lang{"": i18n.EN, "ru": i18n.RU} {
 		texts := i18n.For(lang)
-		wantCommands := `[{"command":"start","description":"` + texts.CommandStart + `"},{"command":"help","description":"` + texts.CommandHelp + `"}]`
+		wantCommands := `[{"command":"start","description":"` + texts.CommandStart + `"},` +
+			`{"command":"link","description":"` + texts.CommandLink + `"},` +
+			`{"command":"matches","description":"` + texts.CommandMatches + `"},` +
+			`{"command":"help","description":"` + texts.CommandHelp + `"}]`
 		if got := api.commands[code]; got != wantCommands {
 			t.Errorf("commands[%q] = %s, want %s", code, got, wantCommands)
 		}
@@ -331,7 +364,7 @@ func TestErrorsDoNotLeakToken(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	b, err := New(testToken, &stubUsers{}, slog.New(slog.DiscardHandler), bot.WithServerURL(srv.URL))
+	b, err := New(testToken, &stubUsers{}, newStubFaceit(), slog.New(slog.DiscardHandler), bot.WithServerURL(srv.URL))
 	if err != nil {
 		t.Fatal(err)
 	}

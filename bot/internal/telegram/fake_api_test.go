@@ -105,6 +105,17 @@ func (f *fakeAPI) result(method string, params map[string]string) (any, bool) {
 			"chat":       map[string]any{"id": chatID, "type": "private"},
 			"text":       params["text"],
 		}, true
+	case "editMessageText":
+		chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
+		messageID, _ := strconv.Atoi(params["message_id"])
+		return map[string]any{
+			"message_id": messageID,
+			"date":       0,
+			"chat":       map[string]any{"id": chatID, "type": "private"},
+			"text":       params["text"],
+		}, true
+	case "answerCallbackQuery", "sendChatAction":
+		return true, true
 	case "getMyCommands":
 		return json.RawMessage(cmp.Or(f.commands[code], "[]")), true
 	case "setMyCommands":
@@ -163,6 +174,15 @@ func (f *fakeAPI) methods() []string {
 func (f *fakeAPI) sentTexts() []string {
 	var out []string
 	for _, c := range f.callsTo("sendMessage") {
+		out = append(out, c.params["text"])
+	}
+	return out
+}
+
+// editedTexts returns the texts messages were edited to, in order.
+func (f *fakeAPI) editedTexts() []string {
+	var out []string
+	for _, c := range f.callsTo("editMessageText") {
 		out = append(out, c.params["text"])
 	}
 	return out

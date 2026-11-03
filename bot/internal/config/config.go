@@ -19,7 +19,9 @@ type Config struct {
 	TelegramToken string
 	// DevBot reports that TelegramToken is the dev bot token from
 	// TELEGRAM_DEV_BOT_TOKEN.
-	DevBot       bool
+	DevBot bool
+	// FaceitAPIKey is the server-side key of the FACEIT Data API.
+	FaceitAPIKey string
 	DatabasePath string
 	LogLevel     slog.Level
 }
@@ -59,6 +61,7 @@ func Parse(lookup func(string) (string, bool)) (Config, error) {
 
 	cfg := Config{
 		TelegramToken: get("TELEGRAM_BOT_TOKEN"),
+		FaceitAPIKey:  get("FACEIT_API_KEY"),
 		DatabasePath:  get("DATABASE_PATH"),
 		LogLevel:      slog.LevelInfo,
 	}
@@ -70,6 +73,9 @@ func Parse(lookup func(string) (string, bool)) (Config, error) {
 	var errs []error
 	if cfg.TelegramToken == "" {
 		errs = append(errs, errors.New("TELEGRAM_BOT_TOKEN is not set (or TELEGRAM_DEV_BOT_TOKEN for local runs)"))
+	}
+	if cfg.FaceitAPIKey == "" {
+		errs = append(errs, errors.New("FACEIT_API_KEY is not set"))
 	}
 	if cfg.DatabasePath == "" {
 		cfg.DatabasePath = DefaultDatabasePath

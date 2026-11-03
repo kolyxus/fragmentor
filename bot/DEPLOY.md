@@ -308,15 +308,16 @@ touch /etc/fragmentor/fragmentor.env && chmod 600 /etc/fragmentor/fragmentor.env
 nano /etc/fragmentor/fragmentor.env
 ```
 
-В `fragmentor.env` — одна строка, токен вставить вместо `...`:
+В `fragmentor.env` — две строки: токен бота и server-side ключ FACEIT Data API вместо `...`:
 
 ```
 TELEGRAM_BOT_TOKEN=...
+FACEIT_API_KEY=...
 ```
 
 - Формат: `KEY=VALUE` без кавычек, без `export` и без комментариев в конце строки
   (systemd читает их как часть значения).
-- Токен вводим только в редакторе: в команде (`echo ... >`) он остался бы в истории.
+- Токен и ключ вводим только в редакторе: в команде (`echo ... >`) они остались бы в истории.
 - `TELEGRAM_DEV_BOT_TOKEN` здесь не задаём никогда: он важнее боевого, и сервер поднял бы dev-бота.
 - По желанию: `LOG_LEVEL=debug`, `HTTPS_PROXY=...`. Остальные переменные понадобятся в следующих шагах.
 
@@ -335,7 +336,7 @@ journalctl -u fragmentor -n 20 --no-pager -o cat
 
 ```
 msg=starting version=<коммит> dev_bot=false
-msg="database ready" path=/var/lib/fragmentor/fragmentor.db schema_version=1
+msg="database ready" path=/var/lib/fragmentor/fragmentor.db schema_version=2
 msg="telegram bot authorized" username=fragmentor_ai_bot
 msg="bot profile up to date"
 msg="polling for updates"
@@ -466,6 +467,13 @@ systemctl start fragmentor
   (поддерживаются `http://`, `https://`, `socks5://`).
 - **`TELEGRAM_BOT_TOKEN is not set`.** Нет файла `fragmentor.env` или строки в нём.
   Без файла systemd вообще не запустит сервис — смотри `systemctl status fragmentor`.
+- **`FACEIT_API_KEY is not set`.** В `fragmentor.env` нет строки с ключом FACEIT (раздел 3.2),
+  без неё бот не стартует.
+- **`faceit: ... status 400 (invalid_token)` в логе.** FACEIT не принял ключ: лишние символы
+  или ключ отозван в App Studio. Нужен server-side ключ, не client-side.
+- **`faceit: ... status 429` или `status 503`.** FACEIT ограничил частоту или недоступен. Бот сам
+  повторяет запрос до трёх раз, пользователю отвечает «FACEIT не отвечает». Если повторяется
+  постоянно — пришли лог.
 - **`Unauthorized`.** Неверный токен: лишние символы, кавычки, комментарий в конце строки.
 - **`The kernel OOM killer killed some processes in this unit` и `Failed with result 'oom-kill'`.**
   Бот упёрся в свой лимит памяти. Ядро убило только бота, systemd поднял его через 5 с, VPN не задет.

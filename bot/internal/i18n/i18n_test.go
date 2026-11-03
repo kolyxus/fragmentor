@@ -2,6 +2,8 @@ package i18n
 
 import (
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -68,6 +70,8 @@ func TestMessagesTranslated(t *testing.T) {
 func TestTelegramLimits(t *testing.T) {
 	limits := map[string]int{
 		"CommandStart":     256,
+		"CommandLink":      256,
+		"CommandMatches":   256,
 		"CommandHelp":      256,
 		"Description":      512,
 		"ShortDescription": 120,
@@ -82,6 +86,21 @@ func TestTelegramLimits(t *testing.T) {
 			if n := len(utf16.Encode([]rune(text))); n > limit {
 				t.Errorf("%s.%s is %d characters long, Telegram allows %d", l, name, n, limit)
 			}
+		}
+	}
+}
+
+// verbRe matches a fmt verb such as %s, %d or %5.1f.
+var verbRe = regexp.MustCompile(`%[-+# 0]*[0-9]*(?:\.[0-9]+)?[a-zA-Z%]`)
+
+// TestFormatVerbsMatch checks that every format has the same verbs in the
+// same order in both languages, so the same arguments fit both.
+func TestFormatVerbsMatch(t *testing.T) {
+	ruTexts, enTexts := fields(For(RU)), fields(For(EN))
+	for name, ruText := range ruTexts {
+		ruVerbs, enVerbs := verbRe.FindAllString(ruText, -1), verbRe.FindAllString(enTexts[name], -1)
+		if !slices.Equal(ruVerbs, enVerbs) {
+			t.Errorf("%s: ru has %q, en has %q", name, ruVerbs, enVerbs)
 		}
 	}
 }

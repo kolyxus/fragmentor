@@ -36,6 +36,8 @@ func (b *Bot) syncProfile(ctx context.Context) (changed []string, err error) {
 
 		commands := []models.BotCommand{
 			{Command: "start", Description: texts.CommandStart},
+			{Command: "link", Description: texts.CommandLink},
+			{Command: "matches", Description: texts.CommandMatches},
 			{Command: "help", Description: texts.CommandHelp},
 		}
 		haveCommands, err := b.api.GetMyCommands(ctx, &bot.GetMyCommandsParams{LanguageCode: p.code})

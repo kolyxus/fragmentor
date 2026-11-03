@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/kolyxus/fragmentor/bot/internal/config"
+	"github.com/kolyxus/fragmentor/bot/internal/faceit"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 	"github.com/kolyxus/fragmentor/bot/internal/telegram"
 )
@@ -57,7 +58,8 @@ func run() (err error) {
 	}
 	log.Info("database ready", "path", cfg.DatabasePath, "schema_version", version)
 
-	tg, err := telegram.New(cfg.TelegramToken, store, log)
+	fc := faceit.New(cfg.FaceitAPIKey, faceit.WithLogger(log))
+	tg, err := telegram.New(cfg.TelegramToken, store, fc, log)
 	if err != nil {
 		return err
 	}

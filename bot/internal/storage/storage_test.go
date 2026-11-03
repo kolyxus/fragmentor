@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,6 +26,20 @@ func openTestStore(t *testing.T, path string) *Store {
 	return s
 }
 
+// migrationCount returns how many migrations the build has.
+func migrationCount(t *testing.T) int {
+	t.Helper()
+	sub, err := fs.Sub(migrationFiles, "migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := loadMigrations(sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(ms)
+}
+
 func TestOpenMigratesNewDatabase(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "dir", "test.db")
 	s := openTestStore(t, path)
@@ -32,12 +48,14 @@ func TestOpenMigratesNewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Errorf("SchemaVersion() = %d, want 1", v)
+	if want := migrationCount(t); v != want {
+		t.Errorf("SchemaVersion() = %d, want %d", v, want)
 	}
-	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
-		t.Fatalf("users table: %v", err)
+	for _, table := range []string{"users", "faceit_accounts"} {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+			t.Fatalf("%s table: %v", table, err)
+		}
 	}
 	var mode string
 	if err := s.db.QueryRow(`PRAGMA journal_mode`).Scan(&mode); err != nil {
@@ -63,8 +81,51 @@ func TestOpenTwiceAppliesMigrationsOnce(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Errorf("schema_migrations has %d rows, want 1", n)
+	if want := migrationCount(t); n != want {
+		t.Errorf("schema_migrations has %d rows, want %d", n, want)
+	}
+}
+
+// TestOpenUpgradesVersion1 opens a database as the build of step 2 left it,
+// with only the users table, as on the server.
+func TestOpenUpgradesVersion1(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := fs.ReadFile(migrationFiles, "migrations/0001_create_users.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL) STRICT`,
+		string(first),
+		`INSERT INTO schema_migrations VALUES (1, 'create_users', 100)`,
+		`INSERT INTO users (telegram_id, username, language, joined_waitlist_at, created_at) VALUES (42, 'player', 'ru', 100, 100)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("prepare version 1: %v", err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s := openTestStore(t, path)
+	v, err := s.SchemaVersion(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := migrationCount(t); v != want {
+		t.Errorf("SchemaVersion() = %d, want %d", v, want)
+	}
+	got := readUser(t, s, 42)
+	if got.language != "ru" || got.joinedAt.Int64 != 100 {
+		t.Errorf("user after the upgrade = %+v", got)
+	}
+	if _, err := s.FaceitAccount(context.Background(), 42); !errors.Is(err, ErrNotFound) {
+		t.Errorf("FaceitAccount() error = %v, want ErrNotFound", err)
 	}
 }
 

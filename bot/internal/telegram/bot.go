@@ -1,5 +1,5 @@
 // Package telegram is the Telegram side of the bot: long polling, command
-// handlers and the bot profile (command menu and descriptions).
+// and button handlers and the bot profile (command menu and descriptions).
 package telegram
 
 import (
@@ -13,6 +13,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/kolyxus/fragmentor/bot/internal/faceit"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
 
@@ -37,19 +38,30 @@ const (
 // Users is the user storage the handlers need.
 type Users interface {
 	JoinWaitlist(ctx context.Context, u storage.User, now time.Time) (joined bool, err error)
+	LinkFaceitAccount(ctx context.Context, u storage.User, acc storage.FaceitAccount, now time.Time) error
+	FaceitAccount(ctx context.Context, telegramID int64) (storage.FaceitAccount, error)
+}
+
+// Faceit is the FACEIT Data API the handlers need.
+type Faceit interface {
+	PlayerByNickname(ctx context.Context, nickname string) (faceit.Player, error)
+	Player(ctx context.Context, playerID string) (faceit.Player, error)
+	RecentMatches(ctx context.Context, playerID string, n int) ([]faceit.MatchSummary, error)
 }
 
 // Bot handles updates from Telegram.
 type Bot struct {
-	api   *bot.Bot
-	users Users
-	log   *slog.Logger
-	now   func() time.Time
+	api     *bot.Bot
+	users   Users
+	faceit  Faceit
+	pending *pendingLinks
+	log     *slog.Logger
+	now     func() time.Time
 }
 
 // New prepares the bot without calling Telegram. Extra options are for tests.
-func New(token string, users Users, log *slog.Logger, opts ...bot.Option) (*Bot, error) {
-	b := &Bot{users: users, log: log, now: time.Now}
+func New(token string, users Users, fc Faceit, log *slog.Logger, opts ...bot.Option) (*Bot, error) {
+	b := &Bot{users: users, faceit: fc, pending: newPendingLinks(), log: log, now: time.Now}
 	options := []bot.Option{
 		bot.WithSkipGetMe(),
 		bot.WithHTTPClient(pollTimeout, &http.Client{Timeout: httpTimeout}),
@@ -57,9 +69,9 @@ func New(token string, users Users, log *slog.Logger, opts ...bot.Option) (*Bot,
 		// updates in progress are handled.
 		bot.WithNotAsyncHandlers(),
 		bot.WithWorkers(workers),
-		bot.WithMiddlewares(b.recoverPanic, detachContext, privateMessagesOnly),
+		bot.WithMiddlewares(b.recoverPanic, detachContext, privateChatsOnly),
 		// Replaces the library default, which logs whole updates with user data.
-		bot.WithDefaultHandler(b.handle("unknown", b.unknown)),
+		bot.WithDefaultHandler(b.handleDefault),
 		bot.WithErrorsHandler(func(err error) {
 			log.Error("telegram api", "err", err)
 		}),
@@ -69,7 +81,10 @@ func New(token string, users Users, log *slog.Logger, opts ...bot.Option) (*Bot,
 		return nil, fmt.Errorf("create telegram client: %w", err)
 	}
 	api.RegisterHandler(bot.HandlerTypeMessageText, "start", bot.MatchTypeCommandStartOnly, b.handle("start", b.start))
+	api.RegisterHandler(bot.HandlerTypeMessageText, "link", bot.MatchTypeCommandStartOnly, b.handle("link", b.link))
+	api.RegisterHandler(bot.HandlerTypeMessageText, "matches", bot.MatchTypeCommandStartOnly, b.handle("matches", b.matches))
 	api.RegisterHandler(bot.HandlerTypeMessageText, "help", bot.MatchTypeCommandStartOnly, b.handle("help", b.help))
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, linkButtonPrefix, bot.MatchTypePrefix, b.handleButton("link", b.linkButton))
 	b.api = api
 	return b, nil
 }
@@ -129,15 +144,35 @@ func detachContext(next bot.HandlerFunc) bot.HandlerFunc {
 	}
 }
 
-// privateMessagesOnly drops everything but messages in private chats: the bot
-// does not work in groups and channels, and edits and other updates need no
-// answer.
-func privateMessagesOnly(next bot.HandlerFunc) bot.HandlerFunc {
+// privateChatsOnly drops everything but messages and button presses in
+// private chats: the bot does not work in groups and channels, and edits and
+// other updates need no answer.
+func privateChatsOnly(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, api *bot.Bot, upd *models.Update) {
-		msg := upd.Message
-		if msg == nil || msg.From == nil || msg.Chat.Type != models.ChatTypePrivate {
+		switch {
+		case upd.Message != nil:
+			if upd.Message.From == nil || upd.Message.Chat.Type != models.ChatTypePrivate {
+				return
+			}
+		case upd.CallbackQuery != nil:
+			if chat := buttonChat(upd.CallbackQuery); chat == nil || chat.Type != models.ChatTypePrivate {
+				return
+			}
+		default:
 			return
 		}
 		next(ctx, api, upd)
 	}
+}
+
+// buttonChat returns the chat of the message with the pressed button, nil
+// for a button under a message sent in inline mode.
+func buttonChat(cq *models.CallbackQuery) *models.Chat {
+	switch {
+	case cq.Message.Message != nil:
+		return &cq.Message.Message.Chat
+	case cq.Message.InaccessibleMessage != nil:
+		return &cq.Message.InaccessibleMessage.Chat
+	}
+	return nil
 }

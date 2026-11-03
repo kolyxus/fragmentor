@@ -1,0 +1,48 @@
+{
+  "activated_at": "2020-01-01T00:00:00Z",
+  "avatar": "",
+  "country": "kp",
+  "cover_featured_image": "",
+  "cover_image": "",
+  "faceit_url": "https://www.faceit.com/{lang}/players/player01",
+  "friends_ids": [],
+  "games": {
+    "cs2": {
+      "faceit_elo": 2413,
+      "game_player_id": "76561190000000001",
+      "game_player_name": "player02",
+      "game_profile_id": "",
+      "region": "EU",
+      "regions": {},
+      "skill_level": 10,
+      "skill_level_label": ""
+    },
+    "csgo": {
+      "faceit_elo": 1987,
+      "game_player_id": "76561190000000001",
+      "game_player_name": "player03",
+      "game_profile_id": "",
+      "region": "EU",
+      "regions": {},
+      "skill_level": 9,
+      "skill_level_label": ""
+    }
+  },
+  "infractions": {},
+  "membership_type": "",
+  "memberships": [
+    "free"
+  ],
+  "new_steam_id": "[U:1:0]",
+  "nickname": "player01",
+  "platforms": {
+    "steam": "redacted"
+  },
+  "player_id": "00000000-0000-4000-8000-000000000001",
+  "settings": {
+    "language": "ru"
+  },
+  "steam_id_64": "76561190000000001",
+  "steam_nickname": "player04",
+  "verified": false
+}

@@ -1,0 +1,10 @@
+{
+  "errors": [
+    {
+      "code": "err_nf0",
+      "http_status": 404,
+      "message": "The resource was not found.",
+      "parameters": []
+    }
+  ]
+}
