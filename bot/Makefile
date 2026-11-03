@@ -11,6 +11,14 @@ LINUX_BIN := bin/fragmentor-linux-$(LINUX_ARCH)
 # The server for make deploy, an alias in ~/.ssh/config (see DEPLOY.md).
 DEPLOY_HOST ?= fragmentor-vps
 
+# ssh and scp for make deploy: on Windows, its own OpenSSH, as in PowerShell.
+# It lives in System32\OpenSSH, which a 32-bit make, like the one from
+# Chocolatey, does not see: Windows shows such a process SysWOW64 in place of
+# System32, and make fails with "CreateProcess(NULL, scp ...) failed". To it
+# the real System32 is Sysnative. Anywhere else ssh and scp come from PATH.
+DEPLOY_SSH ?= $(or $(wildcard C:/Windows/Sysnative/OpenSSH/ssh.exe),ssh)
+DEPLOY_SCP ?= $(or $(wildcard C:/Windows/Sysnative/OpenSSH/scp.exe),scp)
+
 .DEFAULT_GOAL := build
 .PHONY: run test lint build build-linux deploy
 
@@ -51,5 +59,5 @@ deploy:
 	@$(if $(REVISION),,$(error make deploy: no git revision, run it from the repository with git in PATH))
 	@$(if $(CHANGES),$(error make deploy: commit or stash the changes first: $(CHANGES)))
 	$(MAKE) lint test build-linux
-	scp $(LINUX_BIN) deploy/install-release.sh $(DEPLOY_HOST):
-	ssh $(DEPLOY_HOST) sh install-release.sh $(REVISION) $(notdir $(LINUX_BIN))
+	$(DEPLOY_SCP) $(LINUX_BIN) deploy/install-release.sh $(DEPLOY_HOST):
+	$(DEPLOY_SSH) $(DEPLOY_HOST) sh install-release.sh $(REVISION) $(notdir $(LINUX_BIN))

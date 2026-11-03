@@ -420,6 +420,11 @@ make deploy
   не поднялась. Смотри лог, который скрипт напечатал выше, и раздел 8; откат — раздел 5, копия базы — в последней
   `/var/backups/fragmentor-*`.
 - **`scp`/`ssh` не подключились** — проверь `ssh fragmentor-vps` (раздел 1).
+- **`process_begin: CreateProcess(NULL, scp ...) failed` и `make (e=2)`** — make не нашёл `scp`. Make из Chocolatey
+  32-битный и не видит `C:\Windows\System32\OpenSSH`: Windows подсовывает 32-битным программам `SysWOW64`.
+  Поэтому Makefile сам берёт `ssh` и `scp` из `C:\Windows\Sysnative\OpenSSH` — так 32-битная программа видит
+  настоящий `System32`. Если ошибка всё равно есть, укажи пути явно:
+  `make deploy DEPLOY_SCP=<путь к scp.exe> DEPLOY_SSH=<путь к ssh.exe>`.
 
 Другой сервер или алиас: `make deploy DEPLOY_HOST=<алиас>`. Под ARM: `make deploy LINUX_ARCH=arm64`.
 
