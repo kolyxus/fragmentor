@@ -333,11 +333,11 @@ systemctl enable --now fragmentor
 journalctl -u fragmentor -n 20 --no-pager -o cat
 ```
 
-В логе должно быть:
+В логе должно быть (`schema_version` — номер последней миграции в `internal/storage/migrations`):
 
 ```
 msg=starting version=<коммит> dev_bot=false
-msg="database ready" path=/var/lib/fragmentor/fragmentor.db schema_version=2
+msg="database ready" path=/var/lib/fragmentor/fragmentor.db schema_version=3
 msg="telegram bot authorized" username=fragmentor_ai_bot
 msg="bot profile up to date"
 msg="polling for updates"
