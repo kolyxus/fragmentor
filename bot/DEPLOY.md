@@ -8,7 +8,8 @@ Xray в Docker на порту 443. Сайт и почта живут отдел
 и systemd, бот туда не ставится.
 
 - Docker и Xray не трогаем. Бот не слушает портов (22 — sshd, 443 — Xray): при long polling
-  он сам ходит в Telegram, входящие соединения ему не нужны, firewall не меняем.
+  он сам ходит в Telegram, входящие соединения ему не нужны. В firewall появляются только
+  правила fail2ban для порта 22 (раздел 1.3).
 - Памяти мало, поэтому у бота в юните свои лимиты, а при нехватке памяти система убивает бота,
   а не VPN (раздел 3.2).
 
@@ -37,12 +38,15 @@ Xray в Docker на порту 443. Сайт и почта живут отдел
 |---|---|
 | `/swapfile` | swap на 2 ГБ (раздел 3.1) |
 | `/etc/sysctl.d/99-swappiness.conf` | `vm.swappiness=10` (раздел 3.1) |
-| `/etc/ssh/sshd_config.d/00-keys-only.conf` | вход по SSH только по ключу (раздел 1) |
+| `/etc/fail2ban/jail.d/sshd.local` | fail2ban: бан за подбор пароля к SSH (раздел 1.3) |
+| `/etc/ssh/sshd_config.d/00-keys-only.conf` | вход по SSH только по ключу — необязательно, сейчас не используется (раздел 1.2) |
 
-## 1. SSH-доступ (один раз)
+## 1. SSH-доступ
 
 IP сервера в репозиторий не пишем: дальше везде алиас `fragmentor-vps`. Он указывает на VPS
 за рубежом, где работает VPN, а не на хостинг AdminVPS.
+
+### 1.1. Вход по ключу (один раз, на своём компьютере)
 
 1. Ключ, если его ещё нет: `ssh-keygen -t ed25519`. Файлы — в `C:\Users\<ты>\.ssh\`.
    Пароль на ключ (passphrase) — по желанию: с ним украденный файл ключа бесполезен.
@@ -59,45 +63,173 @@ IP сервера в репозиторий не пишем: дальше вез
        User root
    ```
 4. Проверка: `ssh fragmentor-vps` входит без пароля.
-5. Отключить вход по паролю — только после того, как сработал пункт 4.
 
-   **Не закрывай текущую сессию на сервере, пока в новом окне не проверишь вход по ключу.**
-   При ошибке без пароля на сервер не войти, останется только веб-консоль хостера.
-   Уже открытая сессия при этом продолжает работать, и в ней всё можно откатить.
+### 1.2. Отключить вход по паролю (необязательно)
 
-   На сервере:
-   ```sh
-   cat > /etc/ssh/sshd_config.d/00-keys-only.conf <<'EOF'
-   PasswordAuthentication no
-   KbdInteractiveAuthentication no
-   PermitRootLogin prohibit-password
-   EOF
-   sshd -t && systemctl reload ssh
-   sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) '
-   ```
+На сервере бота вход по паролю оставлен включённым (решение от 2026-11-03 в `docs/DECISIONS.md`):
+по паролю входят клиент Amnezia и устройства, на которых нет ключа. Это компромисс:
 
-   Должно быть `passwordauthentication no`, `kbdinteractiveauthentication no` и
-   `permitrootlogin without-password`. Это старое имя `prohibit-password`, так его печатает OpenSSH 9.6
-   из Ubuntu 24.04, а новые версии — уже `prohibit-password`. Смысл один: root входит только по ключу.
-   Почему `00-` в имени: sshd берёт первое встреченное значение каждой настройки, а файлы
-   из `sshd_config.d` читает по алфавиту. В образах Ubuntu бывает `50-cloud-init.conf`
-   с `PasswordAuthentication yes`, и наш файл должен идти раньше.
+- **Пароль включён, как сейчас.** Войти можно с любого устройства, если знаешь пароль. Цена —
+  боты со всего интернета круглосуточно подбирают пароли к SSH. Защищают длинный уникальный пароль,
+  который перебором не подобрать, и fail2ban (раздел 1.3): после 5 неудач за 10 минут
+  IP теряет доступ к SSH на час.
+- **Только ключ.** Подбирать нечего: без файла ключа не войти, сколько ни пробуй. Цена — ключ нужен
+  каждому устройству и программе, которые заходят на сервер, а потерянный ключ оставляет
+  только веб-консоль хостера.
 
-   Не закрывая старую сессию, в **новом** окне на своём компьютере:
-   ```
-   ssh fragmentor-vps exit
-   ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive fragmentor-vps
-   ```
-   Первая команда проходит без пароля, вторая получает `Permission denied (publickey)`.
-   Только после этого старую сессию можно закрыть.
+Отключать пароль имеет смысл, когда и клиент Amnezia, и все устройства будут входить по ключу.
+Что сейчас на сервере: `sshd -T | grep -E '^(passwordauthentication|permitrootlogin) '`
+(`passwordauthentication yes` — пароль включён).
 
-   Если что-то не так, откатить в старой сессии:
-   ```sh
-   rm /etc/ssh/sshd_config.d/00-keys-only.conf && systemctl reload ssh
-   ```
+Как отключить — только после того, как сработала проверка из раздела 1.1.
 
-   Теперь ключ `C:\Users\<ты>\.ssh\id_ed25519` — единственный способ войти по SSH.
-   Сохрани его копию, например в менеджере паролей.
+**Не закрывай текущую сессию на сервере, пока в новом окне не проверишь вход по ключу.**
+При ошибке без пароля на сервер не войти, останется только веб-консоль хостера.
+Уже открытая сессия при этом продолжает работать, и в ней всё можно откатить.
+
+На сервере:
+```sh
+cat > /etc/ssh/sshd_config.d/00-keys-only.conf <<'EOF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+EOF
+sshd -t && systemctl reload ssh
+sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) '
+```
+
+Должно быть `passwordauthentication no`, `kbdinteractiveauthentication no` и
+`permitrootlogin without-password`. Это старое имя `prohibit-password`, так его печатает OpenSSH 9.6
+из Ubuntu 24.04, а новые версии — уже `prohibit-password`. Смысл один: root входит только по ключу.
+Почему `00-` в имени: sshd берёт первое встреченное значение каждой настройки, а файлы
+из `sshd_config.d` читает по алфавиту. В образах Ubuntu бывает `50-cloud-init.conf`
+с `PasswordAuthentication yes`, и наш файл должен идти раньше.
+
+Не закрывая старую сессию, в **новом** окне на своём компьютере:
+```
+ssh fragmentor-vps exit
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive fragmentor-vps
+```
+Первая команда проходит без пароля, вторая получает `Permission denied (publickey)`.
+Только после этого старую сессию можно закрыть.
+
+Ключ `C:\Users\<ты>\.ssh\id_ed25519` теперь единственный способ войти по SSH.
+Сохрани его копию, например в менеджере паролей.
+
+Вернуть вход по паролю — при ошибке в старой сессии или в любой момент позже:
+```sh
+rm /etc/ssh/sshd_config.d/00-keys-only.conf && systemctl reload ssh
+```
+
+### 1.3. fail2ban: бан за подбор пароля
+
+Раз вход по паролю включён, нужен fail2ban. Он следит за логом sshd и после 5 неудачных попыток
+за 10 минут закрывает этому IP порт 22 на час. Бан касается только SSH: VPN на 443 и бот работают как обычно.
+Свои ошибки тоже считаются: одна неверная попытка — одна неудача, а бан ставится на IP, то есть
+на все устройства за тем же роутером. Как снять бан — в разделе 8.
+
+**Откуда fail2ban читает лог sshd.** В минимальном образе может не быть rsyslog, а значит, и файла
+`/var/log/auth.log`. Это не мешает: пакет fail2ban в Ubuntu 24.04 (`1.0.2-3ubuntu0.1`) по умолчанию
+берёт лог sshd из journald (`backend = systemd` в его `jail.d/defaults-debian.conf`), а путь к файлу
+при этом пропускает. В нашем файле `backend = systemd` записан явно, чтобы так оставалось
+и после обновлений пакета.
+
+**Чем банит.** По умолчанию пакет банит через nftables, то есть утилитой `nft`. Пакет `nftables`
+у fail2ban в рекомендуемых, причём как альтернатива `iptables` («nftables | iptables»). `iptables` уже
+стоит вместе с Docker, поэтому apt считает рекомендацию выполненной и `nftables` не ставит. Без `nft`
+fail2ban видит попытки, но бан падает с ошибкой. Поэтому в нашем файле `banaction = iptables-multiport`:
+тот же `iptables`, которым пользуется Docker. fail2ban заводит свою цепочку `f2b-sshd` и переход
+в неё из `INPUT` только для порта 22. Цепочки Docker он не трогает.
+
+На сервере сначала проверки:
+
+```sh
+apt update
+apt-cache policy fail2ban
+command -v iptables nft
+journalctl _COMM=sshd -n 5 --no-pager -o cat
+ls -l /var/log/auth.log
+```
+
+- `Candidate: 1.0.2-3ubuntu0.1`. Версия `1.0.2-3` из самого релиза 24.04 не запускается
+  на Python 3.12. Если кандидат она — остановиться и написать мне.
+- `command -v` печатает путь к `iptables`. Есть ли `nft`, неважно. Если `iptables` нет —
+  остановиться и написать мне.
+- `journalctl _COMM=sshd` показывает последние строки sshd. Их же будет читать fail2ban:
+  в его фильтре условие `_COMM=sshd`.
+- `ls` может ответить `No such file or directory` — это нормально.
+
+Установка. Файл настроек кладём до установки пакета: пакет сразу включает и запускает сервис,
+и тот стартует уже с нашими настройками. Свои настройки — только в `.local`: файлы
+из `jail.d` с этим расширением читаются после файлов пакета и перекрывают их, а сами файлы пакета не правим.
+
+```sh
+install -d -m 755 /etc/fail2ban/jail.d
+cat > /etc/fail2ban/jail.d/sshd.local <<'EOF'
+[sshd]
+enabled   = true
+backend   = systemd
+banaction = iptables-multiport
+maxretry  = 5
+findtime  = 10m
+bantime   = 1h
+EOF
+apt install -y fail2ban
+systemctl enable fail2ban
+systemctl restart fail2ban
+```
+
+Проверка:
+
+```sh
+systemctl is-enabled fail2ban
+systemctl status fail2ban --no-pager | grep -E 'Active:|Memory:'
+fail2ban-client status sshd
+fail2ban-client get sshd actions
+```
+
+- `enabled` (поднимется после перезагрузки) и `Active: active (running)`. В строке `Memory:` —
+  сколько занимает fail2ban: на 1 ГБ RAM рядом с VPN и ботом это важно.
+- `fail2ban-client status sshd`:
+  ```
+  Status for the jail: sshd
+  |- Filter
+  |  |- Currently failed: 0
+  |  |- Total failed:     0
+  |  `- Journal matches:  _SYSTEMD_UNIT=sshd.service + _COMM=sshd
+  `- Actions
+     |- Currently banned: 0
+     |- Total banned:     0
+     `- Banned IP list:
+  ```
+  Числа могут быть уже не нулевыми — это боты. Главное — строка `Journal matches`: fail2ban
+  читает journald. Если вместо неё `File list: /var/log/auth.log`, наш файл не применился:
+  проверь имя и путь `/etc/fail2ban/jail.d/sshd.local`. На Ubuntu сервис называется `ssh.service`,
+  а не `sshd.service`, но `+` в условии означает «или»: строки sshd ловятся по `_COMM=sshd`.
+- `fail2ban-client get sshd actions` — `iptables-multiport`.
+
+Ловит ли fail2ban неудачи. В новом окне на своём компьютере:
+
+```
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive fragmentor-vps
+```
+
+Один раз введи неверный пароль и нажми Ctrl+C. На сервере `fail2ban-client status sshd`:
+`Total failed` вырос хотя бы на 1 (боты тоже прибавляют). Больше 4 неверных паролей за 10 минут
+не вводи, иначе свой IP окажется в бане на час.
+
+Через час-другой проверить, что баны работают:
+
+```sh
+fail2ban-client status sshd
+iptables -S f2b-sshd
+grep -E 'Ban |ERROR' /var/log/fail2ban.log | tail -n 5
+```
+
+`Total banned` больше 0, в `iptables -S f2b-sshd` есть строки `-j REJECT` для забаненных IP,
+в логе — строки `[sshd] Ban <IP>` без `ERROR`. Цепочка `f2b-sshd` появляется при первом бане:
+до него `iptables` ответит, что такой цепочки нет, — это нормально. `Total banned: 0` значит лишь,
+что никто ещё не набрал 5 неудач за 10 минут: проверь позже.
 
 ## 2. Проверка доступа к Telegram (перед первой установкой)
 
@@ -320,6 +452,8 @@ systemctl start fragmentor
 | `systemctl show -p NRestarts fragmentor` | сколько раз бот падал и перезапускался |
 | `free -h`, `swapon --show` | память и swap всего сервера |
 | `systemd-analyze security fragmentor` | оценка песочницы (в WSL с systemd 259 — 1.4 OK) |
+| `fail2ban-client status sshd` | неудачные попытки входа по SSH и забаненные IP |
+| `fail2ban-client set sshd unbanip <IP>` | снять бан с IP |
 
 ## 8. Если что-то пошло не так
 
@@ -336,7 +470,15 @@ systemctl start fragmentor
 - **`The kernel OOM killer killed some processes in this unit` и `Failed with result 'oom-kill'`.**
   Бот упёрся в свой лимит памяти. Ядро убило только бота, systemd поднял его через 5 с, VPN не задет.
   Если повторяется — пришли лог: лимиты пересматриваем по замерам.
-- **Не пускает по SSH после отключения паролей.** Откатить в старой сессии (раздел 1, пункт 5).
+- **SSH с твоего IP не пускает (`Connection refused` или `Connection timed out`), а VPN работает.**
+  Скорее всего, fail2ban забанил IP после неверных паролей: твоих или клиента Amnezia со старым паролем.
+  Бан снимется сам через час. Сразу — с другого IP (например, с телефона через мобильный интернет)
+  или из веб-консоли хостера: `fail2ban-client set sshd unbanip <твой IP>`.
+  Забаненные IP показывает `fail2ban-client status sshd`.
+- **В `/var/log/fail2ban.log` ошибки `nft: not found`.** Не применился `sshd.local`, и fail2ban
+  банит через nftables по умолчанию. Проверь путь `/etc/fail2ban/jail.d/sshd.local`, затем
+  `systemctl restart fail2ban` и `fail2ban-client get sshd actions` → `iptables-multiport`.
+- **Не пускает по SSH после отключения паролей.** Откатить в старой сессии (раздел 1.2).
   Если её уже нет — веб-консоль в панели хостера: там вход по паролю root работает,
   удалить `/etc/ssh/sshd_config.d/00-keys-only.conf` и выполнить `systemctl reload ssh`.
 - **`Unknown key name ...` при `daemon-reload`.** Старый systemd не знает какую-то опцию
