@@ -8,15 +8,17 @@ import (
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 )
 
-// compare checks a demo against the FACEIT match. The score of each team,
-// with the halves and the overtime, and every player's K/D/A and team must
-// match; headshots and damage are shown for reference and marked with * when
-// they differ. Players are matched by SteamID64, which the rosters of the
-// match details give for every FACEIT player. It returns the report lines and
-// the number of mismatches.
-func compare(m *demo.Match, details faceit.Match, stats faceit.MatchStats) ([]string, int) {
+// compare checks a demo and the metrics of its players against the FACEIT
+// match. The score of each team, with the halves and the overtime, and
+// every player's K/D/A and team must match; headshots, damage and ADR are
+// shown for reference and marked with * when they differ, ADR as FACEIT
+// rounds it, to a tenth. Players are matched by SteamID64, which the rosters
+// of the match details give for every FACEIT player. It returns the report
+// lines and the number of mismatches.
+func compare(m *demo.Match, players []metrics.Player, details faceit.Match, stats faceit.MatchStats) ([]string, int) {
 	var (
 		lines      []string
 		mismatches int
@@ -49,6 +51,10 @@ func compare(m *demo.Match, details faceit.Match, stats faceit.MatchStats) ([]st
 	for _, p := range m.Players {
 		ours[strconv.FormatUint(p.SteamID64, 10)] = p
 	}
+	adr := make(map[string]float64) // by SteamID64
+	for _, p := range players {
+		adr[strconv.FormatUint(p.SteamID64, 10)] = p.Match.ADR
+	}
 
 	seen := make(map[string]bool)
 	for _, ft := range ms.Teams {
@@ -75,9 +81,9 @@ func compare(m *demo.Match, details faceit.Match, stats faceit.MatchStats) ([]st
 			}
 			seen[sid] = true
 			add(p.Kills == fp.Kills && p.Deaths == fp.Deaths && p.Assists == fp.Assists && p.Team == team,
-				"    %-16s K/D/A %2d/%2d/%2d  FACEIT %2d/%2d/%2d  HS %s  damage %s",
+				"    %-16s K/D/A %2d/%2d/%2d  FACEIT %2d/%2d/%2d  HS %s  damage %s  ADR %s",
 				fp.Nickname, p.Kills, p.Deaths, p.Assists, fp.Kills, fp.Deaths, fp.Assists,
-				pair(p.Headshots, fp.Headshots), pair(p.Damage, fp.Damage))
+				pair(p.Headshots, fp.Headshots), pair(p.Damage, fp.Damage), pairTenths(adr[sid], fp.ADR))
 		}
 	}
 	for _, p := range m.Players {
@@ -128,6 +134,18 @@ func ourTeam(ft faceit.TeamStats, steamOf map[string]string, ours map[string]dem
 func pair(ours, theirs int) string {
 	s := fmt.Sprintf("%d/%d", ours, theirs)
 	if ours != theirs {
+		s += "*"
+	}
+	return s
+}
+
+// pairTenths shows our number and FACEIT's to a tenth, with * if they differ
+// so. FACEIT rounds a half to the even tenth, as %.1f does: 1614 damage in
+// 24 rounds, 67.25, is 67.2.
+func pairTenths(ours, theirs float64) string {
+	a, b := fmt.Sprintf("%.1f", ours), fmt.Sprintf("%.1f", theirs)
+	s := a + "/" + b
+	if a != b {
 		s += "*"
 	}
 	return s

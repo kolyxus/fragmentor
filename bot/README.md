@@ -75,23 +75,31 @@ go run ./cmd/faceitrecord -nickname <ник> [-match <match_id>]...
 ## Разбор демок
 
 `cmd/parsedemo` разбирает демки FACEIT (`.dem.zst`) и печатает сводку матча в JSON: карту, раунды
-со счётом, K/D/A, хедшоты и урон каждого игрока. Демки для проверки лежат в `testdata/` и в git
-не попадают.
+со счётом, K/D/A, хедшоты и урон каждого игрока и метрики из `internal/metrics` — за матч и за каждую
+сторону. Демки для проверки лежат в `testdata/` и в git не попадают.
 
 ```
 go run ./cmd/parsedemo testdata                          # все демки из папки
-go run ./cmd/parsedemo -faceit -json=false testdata      # сверка счёта и K/D/A с FACEIT
+go run ./cmd/parsedemo -events testdata/<демка>.dem.zst  # ещё и все убийства и попадания
+go run ./cmd/parsedemo -faceit -json=false testdata      # сверка счёта, K/D/A и ADR с FACEIT
+go run ./cmd/parsedemo -csda <папка> -json=false testdata # сверка метрик с cs-demo-analyzer
 ```
 
 - С `-faceit` ID матча берётся из имени файла (`<match_id>-1-1.dem.zst`, как у FACEIT), ключ — из `.env`.
-  Если что-то не совпало, утилита завершается с кодом 1.
+  Если счёт или K/D/A не совпали, утилита завершается с кодом 1; HS, урон и ADR — для справки, расхождение
+  помечено `*`.
+- С `-csda` в папке лежит JSON cs-demo-analyzer на каждую демку. Как его собрать и запустить и почему его
+  цифры местами другие — `docs/notes/cs-demo-analyzer.md` и `docs/DECISIONS.md`. Расхождения с ним
+  код выхода не меняют.
 - Сводку, где раунды не сходятся со счётом или с подсчётом игры, утилита помечает `SUSPICIOUS`
   и тоже выходит с кодом 1; причины — в `warnings` (правило — в `docs/METRICS.md`).
 - Время разбора и пиковая память печатаются в stderr; остальные флаги — `-h`.
 - В выводе ники и SteamID — его не коммитим.
 
-`make test` разбирает и демки из `testdata/`, это добавляет ~15 с. `go test -short ./...` эти тесты пропускает.
-Как устроен разбор — в `docs/notes/demoinfocs.md`.
+`make test` разбирает и демки из `testdata/`: тест `internal/demo` по одной, тест `internal/metrics` все сразу;
+вместе это ~40 с. `go test -short ./...` эти тесты пропускает. С `-race` разбор в 10–20 раз медленнее:
+`go test -race -timeout 30m ./...` идёт около 10 минут. Как устроен разбор — в `docs/notes/demoinfocs.md`,
+формулы метрик — в `docs/METRICS.md`.
 
 ## Подводные камни
 

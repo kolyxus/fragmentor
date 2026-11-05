@@ -1,6 +1,8 @@
 // Package demo turns a CS2 demo of a FACEIT match into a summary: the map,
 // the rounds with the score after each, and every player's kills, deaths,
-// assists, headshots and damage.
+// assists, headshots and damage. With the summary come the events the
+// metrics are counted from: every kill and hit, and who was alive when each
+// round got going.
 //
 // It is the only package that imports demoinfocs-golang, so a change of the
 // library version stays here; see docs/notes/demoinfocs.md. It knows nothing
@@ -84,6 +86,9 @@ type Match struct {
 	// Warnings tell what in the demo looked wrong. They never hold names
 	// or IDs.
 	Warnings []string `json:"warnings,omitempty"`
+	// Kills and Hits are the events of the match in their order.
+	Kills []Kill `json:"kills,omitempty"`
+	Hits  []Hit  `json:"hits,omitempty"`
 }
 
 // Team is one of the two teams of a match.
@@ -106,6 +111,19 @@ type Round struct {
 	Reason     string `json:"reason"` // how it was won, like "bomb_defused"
 	Score      [2]int `json:"score"`  // of Match.Teams after the round
 	EndTick    int    `json:"end_tick"`
+	// FreezeEndTick is when the freeze time ended and the round got going.
+	FreezeEndTick int `json:"freeze_end_tick"`
+	// Alive is who was alive then, the players and the bots of both sides.
+	Alive []Ref `json:"alive,omitempty"`
+}
+
+// Side returns the side that team, an index in Match.Teams, played the
+// round on.
+func (r Round) Side(team int) Side {
+	if (team == r.Winner) == (r.WinnerSide == CT) {
+		return CT
+	}
+	return T
 }
 
 // Player is a player of the match and their scoreboard. Bots are not

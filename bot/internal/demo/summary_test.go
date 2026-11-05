@@ -37,6 +37,13 @@ func end(winner Side, players []playerRef) roundEndEvent {
 	return roundEndEvent{Winner: winner, Reason: "t_eliminated", Players: players}
 }
 
+// endRound plays a round as the demo does: the freeze time ends with the
+// players of the round's end alive, then the round ends.
+func endRound(b *builder, e roundEndEvent) {
+	b.freezeTimeEnd(e.Tick, e.Players)
+	b.roundEnd(e)
+}
+
 func playerByID(t *testing.T, m Match, id uint64) Player {
 	t.Helper()
 	for _, p := range m.Players {
@@ -71,7 +78,7 @@ func TestBuilderKillsDeathsAssists(t *testing.T) {
 	b.kill(killEvent{Victim: t2})
 	// An assist on a teammate's death does not count.
 	b.kill(killEvent{Killer: t1, Victim: ct1, Assister: ct2})
-	b.roundEnd(end(T, []playerRef{*ct1, *ct2, *t1, *t2}))
+	endRound(b, end(T, []playerRef{*ct1, *ct2, *t1, *t2}))
 	m := b.build(24, game(b))
 
 	for _, tc := range []struct {
@@ -101,7 +108,7 @@ func TestBuilderDamage(t *testing.T) {
 	b.hurt(hurtEvent{Attacker: ct1, Victim: bot(T), Damage: 50})
 	b.hurt(hurtEvent{Attacker: bot(T), Victim: ct1, Damage: 30})
 	b.hurt(hurtEvent{Victim: ct2, Damage: 10}) // the world
-	b.roundEnd(end(CT, []playerRef{*ct1, *ct2, *t1}))
+	endRound(b, end(CT, []playerRef{*ct1, *ct2, *t1}))
 	m := b.build(24, game(b))
 
 	if got := playerByID(t, m, 1).Damage; got != 150 {
@@ -118,7 +125,7 @@ func TestBuilderBotsAreNotPlayers(t *testing.T) {
 	b.kill(killEvent{Killer: bot(T), Victim: ct1})
 	b.kill(killEvent{Killer: ct1, Victim: bot(T), Assister: bot(CT)})
 	b.kill(killEvent{Killer: t1, Victim: bot(CT), Headshot: true})
-	b.roundEnd(end(CT, []playerRef{*ct1, *t1}))
+	endRound(b, end(CT, []playerRef{*ct1, *t1}))
 	m := b.build(24, game(b))
 
 	if len(m.Players) != 2 {
@@ -136,12 +143,12 @@ func TestBuilderResetForgetsTheWarmup(t *testing.T) {
 	b := newBuilder()
 	b.kill(killEvent{Killer: human(1, CT), Victim: human(4, T)})
 	b.hurt(hurtEvent{Attacker: human(1, CT), Victim: human(4, T), Damage: 100})
-	b.roundEnd(end(CT, sides(CT)))
+	endRound(b, end(CT, sides(CT)))
 	b.warnf("before the start")
 
 	b.reset()
 	b.kill(killEvent{Killer: human(4, CT), Victim: human(1, T)})
-	b.roundEnd(end(CT, sides(T)))
+	endRound(b, end(CT, sides(T)))
 	m := b.build(24, game(b))
 
 	if len(m.Rounds) != 1 || m.Rounds[0].Number != 1 {
@@ -187,7 +194,7 @@ func TestBuilderScoreAcrossSidesAndOvertime(t *testing.T) {
 		}
 		e := end(winner, sides(side))
 		e.Tick = n * 100
-		b.roundEnd(e)
+		endRound(b, e)
 	}
 	m := b.build(24, game(b))
 
@@ -236,11 +243,11 @@ func TestBuilderScoreAcrossSidesAndOvertime(t *testing.T) {
 func TestBuilderPlayerJoinsLater(t *testing.T) {
 	b := newBuilder()
 	for n := 1; n <= 12; n++ {
-		b.roundEnd(end(CT, sides(CT)))
+		endRound(b, end(CT, sides(CT)))
 	}
 	late := human(7, CT) // team A is T now
 	b.kill(killEvent{Killer: late, Victim: human(1, T)})
-	b.roundEnd(end(CT, append(sides(T), *late)))
+	endRound(b, end(CT, append(sides(T), *late)))
 	m := b.build(24, game(b))
 
 	if p := playerByID(t, m, 7); p.Team != 1 || p.StartSide != T || p.Kills != 1 {
@@ -253,8 +260,8 @@ func TestBuilderPlayerJoinsLater(t *testing.T) {
 
 func TestBuilderComparesWithTheGame(t *testing.T) {
 	b := newBuilder()
-	b.roundEnd(end(CT, sides(CT)))
-	b.roundEnd(end(T, sides(CT)))
+	endRound(b, end(CT, sides(CT)))
+	endRound(b, end(T, sides(CT)))
 	m := b.build(24, gameScore{CT: 1, T: 1, Rounds: 2})
 	if len(m.Warnings) != 0 || m.Suspicious {
 		t.Errorf("warnings = %q, suspicious %t; want none", m.Warnings, m.Suspicious)
@@ -262,7 +269,7 @@ func TestBuilderComparesWithTheGame(t *testing.T) {
 
 	// The game played a round more than the demo showed, a round we lost.
 	b = newBuilder()
-	b.roundEnd(end(CT, sides(CT)))
+	endRound(b, end(CT, sides(CT)))
 	m = b.build(24, gameScore{CT: 1, T: 1, Rounds: 2})
 	if !m.Suspicious || len(m.Warnings) != 2 ||
 		!strings.Contains(m.Warnings[0], "1 rounds were played since the start, the game counted 2") ||
@@ -273,8 +280,8 @@ func TestBuilderComparesWithTheGame(t *testing.T) {
 
 func TestBuilderRoundWithoutWinner(t *testing.T) {
 	b := newBuilder()
-	b.roundEnd(roundEndEvent{Tick: 640, Players: sides(CT)})
-	b.roundEnd(end(T, sides(CT)))
+	endRound(b, roundEndEvent{Tick: 640, Players: sides(CT)})
+	endRound(b, end(T, sides(CT)))
 	m := b.build(24, gameScore{T: 1, Rounds: 2})
 	if len(m.Rounds) != 1 || m.Rounds[0].Number != 1 || m.Teams[1].Score != 1 {
 		t.Errorf("rounds = %+v, teams = %+v; want one round won by team 1", m.Rounds, m.Teams)
@@ -291,10 +298,10 @@ func TestBuilderTeamNamesFollowSides(t *testing.T) {
 	b := newBuilder()
 	e := end(CT, sides(CT))
 	e.Names = map[Side]string{CT: "team_a", T: "team_b"}
-	b.roundEnd(e)
+	endRound(b, e)
 	e = end(CT, sides(T))
 	e.Names = map[Side]string{CT: "team_b", T: ""}
-	b.roundEnd(e)
+	endRound(b, e)
 	m := b.build(24, game(b))
 	if m.Teams[0].Name != "team_a" || m.Teams[1].Name != "team_b" {
 		t.Errorf("names = %q, %q; want team_a, team_b", m.Teams[0].Name, m.Teams[1].Name)
@@ -307,7 +314,7 @@ func TestBuilderPlayersOrder(t *testing.T) {
 	b.kill(killEvent{Killer: human(2, CT), Victim: human(4, T)})
 	b.kill(killEvent{Killer: human(2, CT), Victim: human(6, T)})
 	b.kill(killEvent{Killer: human(3, CT), Victim: human(5, T)})
-	b.roundEnd(end(CT, sides(CT)))
+	endRound(b, end(CT, sides(CT)))
 	m := b.build(24, game(b))
 	var got []uint64
 	for _, p := range m.Players {
@@ -326,9 +333,128 @@ func TestBuilderSkipsNobody(t *testing.T) {
 	b.hurt(hurtEvent{Victim: human(4, T), Damage: 10})
 	// A spectator who never played is not a player of the match.
 	b.see(&playerRef{ID: 9, Name: "spec"})
-	b.roundEnd(end(CT, sides(CT)))
+	endRound(b, end(CT, sides(CT)))
 	m := b.build(24, game(b))
 	if len(m.Players) != 6 {
 		t.Errorf("players = %+v, want the six who played", m.Players)
+	}
+}
+
+func TestBuilderLogsEvents(t *testing.T) {
+	b := newBuilder()
+	ct1, t1 := human(1, CT), human(4, T)
+	// The warmup is forgotten, events and all.
+	b.kill(killEvent{Tick: 5, Killer: ct1, Victim: t1})
+	b.reset()
+
+	b.hurt(hurtEvent{Tick: 10, Attacker: ct1, Victim: t1, Damage: 27, HitGroup: HitHead, Weapon: "AK-47", Class: ClassRifle})
+	b.kill(killEvent{Tick: 11, Killer: ct1, Victim: t1, Assister: human(2, CT), FlashAssist: true, Headshot: true, Weapon: "AK-47", Class: ClassRifle})
+	b.kill(killEvent{Tick: 12, Killer: ct1, FlashAssist: true}) // nobody died: not logged
+	endRound(b, roundEndEvent{Tick: 20, Winner: CT, Players: sides(CT)})
+	// After the end of round 1 until round 2 starts: the bomb, a late kill.
+	b.kill(killEvent{Tick: 21, Victim: human(5, T), Weapon: "C4", Class: ClassBomb})
+	b.roundStart()
+	b.kill(killEvent{Tick: 30, Killer: human(6, T), Victim: human(6, T), Weapon: "World", Class: ClassWorld, Disconnect: true})
+	b.kill(killEvent{Tick: 31, Killer: t1, Victim: ct1, FlashAssist: true, Weapon: "Glock-18", Class: ClassPistol})
+	b.leftServer(len(b.kills) - 1)
+	b.leftServer(99) // out of the log: ignored
+	endRound(b, roundEndEvent{Tick: 40, Winner: T, Players: sides(CT)})
+	m := b.build(24, game(b))
+
+	type got struct {
+		tick, round   int
+		after, flash  bool
+		head, discon  bool
+		killer, vicID uint64
+	}
+	var kills []got
+	for _, k := range m.Kills {
+		var killer uint64
+		if k.Killer != nil {
+			killer = k.Killer.ID
+		}
+		kills = append(kills, got{k.Tick, k.Round, k.AfterRoundEnd, k.FlashAssist, k.Headshot, k.Disconnect, killer, k.Victim.ID})
+	}
+	want := []got{
+		{11, 1, false, true, true, false, 1, 4},
+		{21, 1, true, false, false, false, 0, 5},
+		{30, 2, false, false, false, true, 6, 6},
+		{31, 2, false, false, false, true, 4, 1}, // marked by leftServer; a flash assist needs an assister
+	}
+	if !slices.Equal(kills, want) {
+		t.Errorf("kills =\n%+v\nwant\n%+v", kills, want)
+	}
+	if len(m.Hits) != 1 {
+		t.Fatalf("hits = %+v, want the one after the start", m.Hits)
+	}
+	if h := m.Hits[0]; h.Round != 1 || h.Tick != 10 || h.Damage != 27 || h.HitGroup != HitHead || h.Class != ClassRifle || h.Attacker.ID != 1 || h.Victim.ID != 4 {
+		t.Errorf("hit = %+v", h)
+	}
+	if k := m.Kills[0]; k.Assister == nil || k.Assister.ID != 2 || k.Assister.Side != CT || k.Weapon != "AK-47" {
+		t.Errorf("kill = %+v, want the assister and the weapon", k)
+	}
+}
+
+func TestBuilderAlive(t *testing.T) {
+	b := newBuilder()
+	b.freezeTimeEnd(100, append(sides(CT), *bot(T)))
+	endRound(b, roundEndEvent{Tick: 900, Winner: CT, Players: sides(CT)})
+	// The demo lacks the start of round 2: the end of its freeze time starts it.
+	b.kill(killEvent{Tick: 950, Killer: human(1, CT), Victim: human(4, T)})
+	b.freezeTimeEnd(1000, sides(CT))
+	b.kill(killEvent{Tick: 1010, Killer: human(1, CT), Victim: human(5, T)})
+	b.roundEnd(roundEndEvent{Tick: 1900, Winner: CT, Players: sides(CT)})
+	m := b.build(24, game(b))
+
+	// endRound noted the players of the end again at tick 900; the
+	// roster at 100 had a bot.
+	if r := m.Rounds[0]; r.FreezeEndTick != 900 || len(r.Alive) != 6 {
+		t.Errorf("round 1: freeze end %d, alive %+v", r.FreezeEndTick, r.Alive)
+	}
+	if r := m.Rounds[1]; r.FreezeEndTick != 1000 || len(r.Alive) != 6 || r.Alive[0] != (Ref{ID: 1, Side: CT}) {
+		t.Errorf("round 2: freeze end %d, alive %+v", r.FreezeEndTick, r.Alive)
+	}
+	if got := []int{m.Kills[0].Round, m.Kills[1].Round}; !slices.Equal(got, []int{1, 2}) || !m.Kills[0].AfterRoundEnd || m.Kills[1].AfterRoundEnd {
+		t.Errorf("kills = %+v, want one after round 1, one in round 2", m.Kills)
+	}
+	if len(m.Warnings) != 0 {
+		t.Errorf("warnings = %q", m.Warnings)
+	}
+
+	// A round whose freeze time never ended: who was alive is unknown.
+	b = newBuilder()
+	b.roundEnd(roundEndEvent{Tick: 900, Winner: CT, Players: sides(CT)})
+	m = b.build(24, game(b))
+	if !m.Suspicious || len(m.Warnings) != 1 || !strings.Contains(m.Warnings[0], "round 1 has no end of its freeze time") {
+		t.Errorf("suspicious %t, warnings %q", m.Suspicious, m.Warnings)
+	}
+}
+
+func TestRefExport(t *testing.T) {
+	var none *playerRef
+	if none.export() != nil {
+		t.Error("nil exports to a ref")
+	}
+	p := playerRef{ID: 12, Name: "BOT Eli", Side: T, Bot: true, Controller: 76561190000000001}
+	if got := *p.export(); got != (Ref{ID: 12, Bot: true, Side: T, Controller: 76561190000000001}) {
+		t.Errorf("export = %+v", got)
+	}
+}
+
+func TestRoundSide(t *testing.T) {
+	for _, tc := range []struct {
+		winner     int
+		winnerSide Side
+		team       int
+		want       Side
+	}{
+		{0, CT, 0, CT}, {0, CT, 1, T},
+		{0, T, 0, T}, {0, T, 1, CT},
+		{1, CT, 1, CT}, {1, T, 0, CT},
+	} {
+		r := Round{Winner: tc.winner, WinnerSide: tc.winnerSide}
+		if got := r.Side(tc.team); got != tc.want {
+			t.Errorf("round won by %d on %s: team %d played %s, want %s", tc.winner, tc.winnerSide, tc.team, got, tc.want)
+		}
 	}
 }

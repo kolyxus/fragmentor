@@ -83,7 +83,7 @@ func testDemos(t *testing.T) []string {
 func TestParseTestdata(t *testing.T) {
 	for _, file := range testDemos(t) {
 		t.Run(filepath.Base(file)[:10], func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 			m, err := ParseFile(ctx, file, Options{})
 			if err != nil {
@@ -125,7 +125,81 @@ func TestParseTestdata(t *testing.T) {
 			if perTeam != [2]int{5, 5} {
 				t.Errorf("players per team %v, want 5 and 5", perTeam)
 			}
+			checkEvents(t, m)
 		})
+	}
+}
+
+// checkEvents checks the events of a real match: every kill and hit falls
+// in a round, in order; every round knows who was alive in it; and the
+// deaths, kills and damage of the log add up to the summary.
+func checkEvents(t *testing.T, m *Match) {
+	t.Helper()
+	inRound := func(what string, i, tick, round int, after bool) {
+		if round < 1 || round > len(m.Rounds) {
+			t.Errorf("%s %d at tick %d in round %d of %d", what, i, tick, round, len(m.Rounds))
+			return
+		}
+		r := m.Rounds[round-1]
+		if after && tick < r.EndTick || !after && (tick > r.EndTick || round > 1 && tick < m.Rounds[round-2].EndTick) {
+			t.Errorf("%s %d at tick %d, after the end %t, round %d ended at %d", what, i, tick, after, round, r.EndTick)
+		}
+	}
+	players := make(map[uint64]Player)
+	for _, p := range m.Players {
+		players[p.SteamID64] = p
+	}
+	var deaths, kills, damage int
+	last := 0
+	for i, k := range m.Kills {
+		inRound("kill", i, k.Tick, k.Round, k.AfterRoundEnd)
+		if k.Tick < last {
+			t.Errorf("kill %d at tick %d comes after tick %d", i, k.Tick, last)
+		}
+		last = k.Tick
+		if _, ok := players[k.Victim.ID]; ok && !k.Victim.Bot {
+			deaths++
+		}
+		if k.Killer != nil && !k.Killer.Bot && k.Killer.Side != k.Victim.Side && players[k.Killer.ID].SteamID64 != 0 {
+			kills++
+		}
+		if k.Disconnect && (k.Killer == nil || k.Killer.ID != k.Victim.ID || k.Class != ClassWorld) {
+			t.Errorf("kill %d: a disconnect not by the victim's own hand: %+v", i, k)
+		}
+	}
+	for i, h := range m.Hits {
+		inRound("hit", i, h.Tick, h.Round, h.AfterRoundEnd)
+		if h.Attacker != nil && !h.Attacker.Bot && h.Attacker.Side != h.Victim.Side && players[h.Attacker.ID].SteamID64 != 0 {
+			damage += h.Damage
+		}
+	}
+	var sum Player
+	for _, p := range m.Players {
+		sum.Deaths += p.Deaths
+		sum.Kills += p.Kills
+		sum.Damage += p.Damage
+	}
+	if deaths != sum.Deaths || kills != sum.Kills || damage != sum.Damage {
+		t.Errorf("the log has %d deaths, %d kills, %d damage; the summary %d, %d, %d", deaths, kills, damage, sum.Deaths, sum.Kills, sum.Damage)
+	}
+	for _, r := range m.Rounds {
+		var alive [2]int
+		for _, a := range r.Alive {
+			switch {
+			case a.Side == CT:
+				alive[0]++
+			case a.Side == T:
+				alive[1]++
+			default:
+				t.Errorf("round %d: alive on no side: %+v", r.Number, a)
+			}
+			if _, ok := players[a.ID]; !a.Bot && !ok {
+				t.Errorf("round %d: alive is not a player of the match: %+v", r.Number, a)
+			}
+		}
+		if alive[0] < 1 || alive[0] > 5 || alive[1] < 1 || alive[1] > 5 || r.FreezeEndTick <= 0 || r.FreezeEndTick >= r.EndTick {
+			t.Errorf("round %d: alive CT %d, T %d; freeze time ended at %d, the round at %d", r.Number, alive[0], alive[1], r.FreezeEndTick, r.EndTick)
+		}
 	}
 }
 

@@ -12,14 +12,25 @@ import (
 
 // playerRef is a player as an event saw them.
 type playerRef struct {
-	ID   uint64 // SteamID64, 0 for a bot
+	ID   uint64 // SteamID64; for a bot its user ID plus one, see Ref.ID
 	Name string
 	Side Side // "" if neither T nor CT
 	Bot  bool
+	// Controller is the SteamID64 of the player who controls the bot, see
+	// Ref.Controller.
+	Controller uint64
 }
 
 // human reports whether p is a player and not a bot.
 func (p *playerRef) human() bool { return p != nil && !p.Bot && p.ID != 0 }
+
+// export makes the Ref of an event out of p, nil out of nil.
+func (p *playerRef) export() *Ref {
+	if p == nil {
+		return nil
+	}
+	return &Ref{ID: p.ID, Bot: p.Bot, Side: p.Side, Controller: p.Controller}
+}
 
 // enemies reports whether a and b were on different sides. A suicide is not
 // a kill of an enemy: the killer and the victim are on the same side.
@@ -28,16 +39,25 @@ func enemies(a, b *playerRef) bool {
 }
 
 type killEvent struct {
-	Killer   *playerRef // nil for the world: the bomb, a fall
-	Victim   *playerRef
-	Assister *playerRef // flash assists included
-	Headshot bool
+	Tick        int
+	Killer      *playerRef // nil for the world: the bomb, a fall
+	Victim      *playerRef // whose body died
+	Assister    *playerRef // flash assists included
+	FlashAssist bool
+	Headshot    bool
+	Disconnect  bool // the victim left the server
+	Weapon      string
+	Class       WeaponClass
 }
 
 type hurtEvent struct {
+	Tick     int
 	Attacker *playerRef // nil for the world
-	Victim   *playerRef
-	Damage   int // health taken, no more than the victim had
+	Victim   *playerRef // whose body was hit
+	Damage   int        // health taken, no more than the victim had
+	HitGroup HitGroup
+	Weapon   string
+	Class    WeaponClass
 }
 
 type roundEndEvent struct {
@@ -73,10 +93,23 @@ type builder struct {
 	names    [2]string
 	score    [2]int
 	warnings []string
+
+	// The events of the match. They fall in round cur: the round in
+	// progress, or the one that has just ended (ended) until the next one
+	// starts. A round without a winner gets no Number, so its events fall
+	// in the round after it; such a summary is suspicious anyway.
+	kills []Kill
+	hits  []Hit
+	cur   int
+	ended bool
+	// alive is who was alive when the freeze time of the round in progress
+	// ended, at tick freezeEnd; nil until then.
+	alive     []Ref
+	freezeEnd int
 }
 
 func newBuilder() *builder {
-	return &builder{players: make(map[uint64]*playerStats)}
+	return &builder{players: make(map[uint64]*playerStats), cur: 1}
 }
 
 // reset forgets everything counted: the match starts, or starts over.
@@ -108,6 +141,7 @@ func (b *builder) see(p *playerRef) *playerStats {
 
 // kill counts a death of the victim, whatever killed them, and a kill and
 // an assist only against an enemy: a teamkill or a suicide gives no kill.
+// It logs the kill as an event of the current round.
 func (b *builder) kill(k killEvent) {
 	if v := b.see(k.Victim); v != nil {
 		v.Deaths++
@@ -121,13 +155,71 @@ func (b *builder) kill(k killEvent) {
 	if a := b.see(k.Assister); a != nil && enemies(k.Assister, k.Victim) {
 		a.Assists++
 	}
+	if k.Victim == nil {
+		return // a broken demo: a death of nobody tells nothing
+	}
+	b.kills = append(b.kills, Kill{
+		Tick:          k.Tick,
+		Round:         b.cur,
+		AfterRoundEnd: b.ended,
+		Killer:        k.Killer.export(),
+		Victim:        *k.Victim.export(),
+		Assister:      k.Assister.export(),
+		FlashAssist:   k.FlashAssist && k.Assister != nil,
+		Headshot:      k.Headshot,
+		Disconnect:    k.Disconnect,
+		Weapon:        k.Weapon,
+		Class:         k.Class,
+	})
 }
 
-// hurt counts damage to enemies only, bots among them.
+// leftServer marks the kill i of the log as a disconnect: its victim left
+// the server. It is for the case the game tells of the leaving after the
+// death.
+func (b *builder) leftServer(i int) {
+	if i >= 0 && i < len(b.kills) {
+		b.kills[i].Disconnect = true
+	}
+}
+
+// hurt counts damage to enemies only, bots among them, and logs the hit.
 func (b *builder) hurt(h hurtEvent) {
 	b.see(h.Victim)
 	if a := b.see(h.Attacker); a != nil && enemies(h.Attacker, h.Victim) {
 		a.Damage += h.Damage
+	}
+	if h.Victim == nil {
+		return
+	}
+	b.hits = append(b.hits, Hit{
+		Tick:          h.Tick,
+		Round:         b.cur,
+		AfterRoundEnd: b.ended,
+		Attacker:      h.Attacker.export(),
+		Victim:        *h.Victim.export(),
+		Damage:        h.Damage,
+		HitGroup:      h.HitGroup,
+		Weapon:        h.Weapon,
+		Class:         h.Class,
+	})
+}
+
+// roundStart starts the next round once the last one has ended: the events
+// from now on are the next round's.
+func (b *builder) roundStart() {
+	if b.ended {
+		b.cur, b.ended = len(b.rounds)+1, false
+	}
+}
+
+// freezeTimeEnd notes who was alive when the freeze time of the round ended
+// at tick. It starts the round too, should the demo lack its start.
+func (b *builder) freezeTimeEnd(tick int, alive []playerRef) {
+	b.roundStart()
+	b.freezeEnd = tick
+	b.alive = make([]Ref, 0, len(alive))
+	for i := range alive {
+		b.alive = append(b.alive, *alive[i].export())
 	}
 }
 
@@ -135,9 +227,15 @@ func (b *builder) hurt(h hurtEvent) {
 // and no score, but it counts as played, so check finds the gap.
 func (b *builder) roundEnd(e roundEndEvent) {
 	b.played++
+	b.ended = true
+	alive, freezeEnd := b.alive, b.freezeEnd
+	b.alive, b.freezeEnd = nil, 0
 	if e.Winner != T && e.Winner != CT {
 		b.warnf("a round ended without a winner at tick %d", e.Tick)
 		return
+	}
+	if alive == nil {
+		b.warnf("round %d has no end of its freeze time: who was alive in it is unknown", len(b.rounds)+1)
 	}
 	ct := b.ctTeam(e.Players)
 	for i := range e.Players {
@@ -152,12 +250,14 @@ func (b *builder) roundEnd(e roundEndEvent) {
 	b.score[winner]++
 	b.rounds = append(b.rounds, roundRec{
 		Round: Round{
-			Number:     len(b.rounds) + 1,
-			Winner:     winner,
-			WinnerSide: e.Winner,
-			Reason:     e.Reason,
-			Score:      b.score,
-			EndTick:    e.Tick,
+			Number:        len(b.rounds) + 1,
+			Winner:        winner,
+			WinnerSide:    e.Winner,
+			Reason:        e.Reason,
+			Score:         b.score,
+			EndTick:       e.Tick,
+			FreezeEndTick: freezeEnd,
+			Alive:         alive,
 		},
 		ctTeam: ct,
 	})
@@ -245,6 +345,7 @@ func (b *builder) build(maxRounds int, game gameScore) Match {
 	b.check(game)
 	m.Warnings = b.warnings
 	m.Suspicious = len(m.Warnings) > 0
+	m.Kills, m.Hits = b.kills, b.hits
 	return m
 }
 

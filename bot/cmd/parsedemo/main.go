@@ -1,18 +1,21 @@
 // Command parsedemo parses FACEIT demos, .dem.zst files, and prints the
-// summary of each as JSON: the map, the rounds with the score, and every
-// player's kills, deaths, assists, headshots and damage. It reports how long
-// each demo took and the peak memory. With -faceit it compares the score and
-// K/D/A with the match stats of the FACEIT Data API. It exits with status 1
-// if a demo fails, its summary is suspicious (see demo.Match) or anything
-// differs from FACEIT.
+// summary of each as JSON: the map, the rounds with the score, every
+// player's kills, deaths, assists, headshots and damage, and the metrics of
+// internal/metrics. It reports how long each demo took and the peak memory.
+// With -faceit it compares the score and K/D/A with the match stats of the
+// FACEIT Data API; with -csda, the metrics with those of cs-demo-analyzer.
+// It exits with status 1 if a demo fails, its summary is suspicious (see
+// demo.Match) or anything differs from FACEIT.
 //
 // Run from bot/:
 //
-//	go run ./cmd/parsedemo [-faceit] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
+//	go run ./cmd/parsedemo [-faceit] [-csda folder] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
 //
 // A folder stands for every *.dem.zst in it. For -faceit the match ID comes
 // from the file name, <match_id>-1-1.dem.zst, as FACEIT names its demos, and
-// FACEIT_API_KEY comes from the environment or .env, as for the bot.
+// FACEIT_API_KEY comes from the environment or .env, as for the bot. For
+// -csda the folder holds the JSON of cs-demo-analyzer for each demo, see
+// csda.go. -events adds the kills and hits of the match to the JSON.
 //
 // The summary holds nicknames and SteamIDs: keep its output out of the
 // repository.
@@ -36,6 +39,7 @@ import (
 	"github.com/kolyxus/fragmentor/bot/internal/config"
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 )
 
 // faceitTimeout bounds the two requests to FACEIT for one demo.
@@ -47,6 +51,8 @@ func main() {
 	maxSize := flag.Int64("max-size", demo.DefaultMaxSize>>20, "limit of a decompressed demo, MiB")
 	parallel := flag.Int("parallel", 1, "how many demos to parse at once")
 	printJSON := flag.Bool("json", true, "print the summary as JSON")
+	printEvents := flag.Bool("events", false, "print the kills, hits and who was alive in each round in the JSON too")
+	csdaDir := flag.String("csda", "", "folder with the JSON of cs-demo-analyzer to compare the metrics with")
 	envPath := flag.String("env", ".env", "file with FACEIT_API_KEY, for -faceit")
 	flag.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "usage: parsedemo [flags] <file.dem.zst | folder>...")
@@ -64,12 +70,14 @@ func main() {
 		os.Exit(2)
 	}
 	r := &runner{
-		opts:      demo.Options{MaxSize: *maxSize << 20},
-		timeout:   *timeout,
-		printJSON: *printJSON,
-		out:       os.Stdout,
-		log:       os.Stderr,
-		mem:       startSampler(),
+		opts:        demo.Options{MaxSize: *maxSize << 20},
+		timeout:     *timeout,
+		printJSON:   *printJSON,
+		printEvents: *printEvents,
+		csdaDir:     *csdaDir,
+		out:         os.Stdout,
+		log:         os.Stderr,
+		mem:         startSampler(),
 	}
 	if *withFACEIT {
 		cfg, err := config.Load(*envPath)
@@ -120,13 +128,15 @@ func matchID(path string) (string, bool) {
 }
 
 type runner struct {
-	opts      demo.Options
-	timeout   time.Duration
-	printJSON bool
-	faceit    *faceit.Client // nil without -faceit
-	out, log  io.Writer
-	mem       *sampler
-	mu        sync.Mutex // one demo writes at a time
+	opts        demo.Options
+	timeout     time.Duration
+	printJSON   bool
+	printEvents bool
+	faceit      *faceit.Client // nil without -faceit
+	csdaDir     string         // "" without -csda
+	out, log    io.Writer
+	mem         *sampler
+	mu          sync.Mutex // one demo writes at a time
 }
 
 // run parses the files, n at a time, and reports whether all went well.
@@ -168,11 +178,20 @@ func (r *runner) one(path string, ownPeak bool) bool {
 	start := time.Now()
 	m, err := demo.ParseFile(ctx, path, r.opts)
 	elapsed := time.Since(start)
+	var players []metrics.Player
+	if err == nil {
+		players = metrics.Compute(m)
+	}
 
 	var report []string
 	mismatches := 0
 	if err == nil && r.faceit != nil {
-		report, mismatches, err = r.compare(path, m)
+		report, mismatches, err = r.compare(path, m, players)
+	}
+	if err == nil && r.csdaDir != "" {
+		var lines []string
+		lines, err = compareCSDA(r.csdaDir, path, m, players)
+		report = append(report, lines...)
 	}
 
 	r.mu.Lock()
@@ -186,10 +205,15 @@ func (r *runner) one(path string, ownPeak bool) bool {
 		return false
 	}
 	if r.printJSON {
+		out := m
+		if !r.printEvents {
+			out = withoutEvents(m)
+		}
 		b, err := json.MarshalIndent(struct {
 			File string `json:"file"`
 			*demo.Match
-		}{name, m}, "", "  ")
+			Metrics []metrics.Player `json:"metrics"`
+		}{name, out, players}, "", "  ")
 		if err != nil {
 			fmt.Fprintf(r.log, "%s: encode: %v\n", name, err)
 			return false
@@ -213,8 +237,20 @@ func (r *runner) one(path string, ownPeak bool) bool {
 	return mismatches == 0 && !m.Suspicious
 }
 
+// withoutEvents returns a copy of m without its kills, hits and who was
+// alive in each round, which make the JSON long.
+func withoutEvents(m *demo.Match) *demo.Match {
+	out := *m
+	out.Kills, out.Hits = nil, nil
+	out.Rounds = slices.Clone(m.Rounds)
+	for i := range out.Rounds {
+		out.Rounds[i].Alive = nil
+	}
+	return &out
+}
+
 // compare fetches the match from FACEIT and compares it with the demo.
-func (r *runner) compare(path string, m *demo.Match) ([]string, int, error) {
+func (r *runner) compare(path string, m *demo.Match, players []metrics.Player) ([]string, int, error) {
 	id, ok := matchID(path)
 	if !ok {
 		return nil, 0, errors.New("no FACEIT match ID in the file name, expected <match_id>-1-1.dem.zst")
@@ -229,6 +265,6 @@ func (r *runner) compare(path string, m *demo.Match) ([]string, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	report, mismatches := compare(m, details, stats)
+	report, mismatches := compare(m, players, details, stats)
 	return report, mismatches, nil
 }
