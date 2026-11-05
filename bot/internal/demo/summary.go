@@ -48,7 +48,36 @@ type killEvent struct {
 	Disconnect  bool // the victim left the server
 	Weapon      string
 	Class       WeaponClass
+	Grenades    []string // what the victim's body carried
 }
+
+type shotEvent struct {
+	Tick     int
+	Shooter  *playerRef // whose body fired
+	Weapon   string
+	Class    WeaponClass
+	Speed    float64 // over the ground, units per second
+	MaxSpeed float64 // with the gun at the moment
+}
+
+type flashEvent struct {
+	Tick     int
+	Thrower  *playerRef // nil if unknown
+	Victim   *playerRef // whose body was blinded
+	Duration float64    // seconds
+}
+
+// body tells the bodies of the events apart: the ID of a bot is unique
+// only among bots.
+type body struct {
+	id  uint64
+	bot bool
+}
+
+func bodyOf(p *playerRef) body { return body{id: p.ID, bot: p.Bot} }
+
+// sightKey is who sees whom.
+type sightKey struct{ spotter, target body }
 
 type hurtEvent struct {
 	Tick     int
@@ -98,18 +127,34 @@ type builder struct {
 	// progress, or the one that has just ended (ended) until the next one
 	// starts. A round without a winner gets no Number, so its events fall
 	// in the round after it; such a summary is suspicious anyway.
-	kills []Kill
-	hits  []Hit
-	cur   int
-	ended bool
+	kills     []Kill
+	hits      []Hit
+	shots     []Shot
+	flashes   []Flash
+	sightings []Sighting
+	cur       int
+	ended     bool
 	// alive is who was alive when the freeze time of the round in progress
 	// ended, at tick freezeEnd; nil until then.
 	alive     []Ref
 	freezeEnd int
+	// seeing holds the sightings in progress, by their index in sightings.
+	// dead is the bodies that died in the round, which neither see nor are
+	// seen any more.
+	seeing map[sightKey]int
+	dead   map[body]bool
+	// tick is the last tick of an event, where the sightings still in
+	// progress end when the demo does.
+	tick int
 }
 
 func newBuilder() *builder {
-	return &builder{players: make(map[uint64]*playerStats), cur: 1}
+	return &builder{
+		players: make(map[uint64]*playerStats),
+		cur:     1,
+		seeing:  make(map[sightKey]int),
+		dead:    make(map[body]bool),
+	}
 }
 
 // reset forgets everything counted: the match starts, or starts over.
@@ -143,6 +188,7 @@ func (b *builder) see(p *playerRef) *playerStats {
 // an assist only against an enemy: a teamkill or a suicide gives no kill.
 // It logs the kill as an event of the current round.
 func (b *builder) kill(k killEvent) {
+	b.tick = max(b.tick, k.Tick)
 	if v := b.see(k.Victim); v != nil {
 		v.Deaths++
 	}
@@ -170,7 +216,24 @@ func (b *builder) kill(k killEvent) {
 		Disconnect:    k.Disconnect,
 		Weapon:        k.Weapon,
 		Class:         k.Class,
+		Grenades:      k.Grenades,
 	})
+	b.gone(k.Tick, bodyOf(k.Victim), !k.Disconnect)
+}
+
+// gone ends the sightings of the body who, as the spotter and as the
+// target, at tick: it died or left the server. A body that died stays dead
+// until the next round; one that left may come back and play on.
+func (b *builder) gone(tick int, who body, died bool) {
+	if died {
+		b.dead[who] = true
+	}
+	for k, i := range b.seeing {
+		if k.spotter == who || k.target == who {
+			b.sightings[i].To = tick
+			delete(b.seeing, k)
+		}
+	}
 }
 
 // leftServer marks the kill i of the log as a disconnect: its victim left
@@ -179,11 +242,90 @@ func (b *builder) kill(k killEvent) {
 func (b *builder) leftServer(i int) {
 	if i >= 0 && i < len(b.kills) {
 		b.kills[i].Disconnect = true
+		v := b.kills[i].Victim
+		delete(b.dead, body{id: v.ID, bot: v.Bot})
+	}
+}
+
+// shot logs a shot of a gun in the current round.
+func (b *builder) shot(s shotEvent) {
+	b.tick = max(b.tick, s.Tick)
+	if s.Shooter == nil {
+		return
+	}
+	b.shots = append(b.shots, Shot{
+		Tick:          s.Tick,
+		Round:         b.cur,
+		AfterRoundEnd: b.ended,
+		Shooter:       *s.Shooter.export(),
+		Weapon:        s.Weapon,
+		Class:         s.Class,
+		Speed:         s.Speed,
+		MaxSpeed:      s.MaxSpeed,
+	})
+}
+
+// flash logs a body blinded by a flashbang in the current round.
+func (b *builder) flash(f flashEvent) {
+	b.tick = max(b.tick, f.Tick)
+	if f.Victim == nil {
+		return
+	}
+	b.flashes = append(b.flashes, Flash{
+		Tick:          f.Tick,
+		Round:         b.cur,
+		AfterRoundEnd: b.ended,
+		Thrower:       f.Thrower.export(),
+		Victim:        *f.Victim.export(),
+		Duration:      f.Duration,
+	})
+}
+
+// spotted notes who sees target from tick on: the game tells it whenever
+// the spotters of a body change. Only enemies count, and only the living:
+// the game keeps the flag of a dead body for a while.
+func (b *builder) spotted(tick int, target *playerRef, spotters []playerRef) {
+	b.tick = max(b.tick, tick)
+	if target == nil {
+		return
+	}
+	t := bodyOf(target)
+	sees := func(s *playerRef) bool { return !b.dead[t] && !b.dead[bodyOf(s)] && enemies(s, target) }
+	now := make(map[body]bool, len(spotters))
+	for i := range spotters {
+		if sees(&spotters[i]) {
+			now[bodyOf(&spotters[i])] = true
+		}
+	}
+	for k, i := range b.seeing {
+		if k.target == t && !now[k.spotter] {
+			b.sightings[i].To = tick
+			delete(b.seeing, k)
+		}
+	}
+	// In the order of spotters, for the order of the log.
+	for i := range spotters {
+		s := &spotters[i]
+		k := sightKey{spotter: bodyOf(s), target: t}
+		if _, ok := b.seeing[k]; ok || !now[k.spotter] {
+			continue
+		}
+		b.seeing[k] = len(b.sightings)
+		b.sightings = append(b.sightings, Sighting{Round: b.cur, Spotter: *s.export(), Target: *target.export(), From: tick, To: tick})
+	}
+}
+
+// endSightings ends every sighting in progress at tick.
+func (b *builder) endSightings(tick int) {
+	for k, i := range b.seeing {
+		b.sightings[i].To = tick
+		delete(b.seeing, k)
 	}
 }
 
 // hurt counts damage to enemies only, bots among them, and logs the hit.
 func (b *builder) hurt(h hurtEvent) {
+	b.tick = max(b.tick, h.Tick)
 	b.see(h.Victim)
 	if a := b.see(h.Attacker); a != nil && enemies(h.Attacker, h.Victim) {
 		a.Damage += h.Damage
@@ -204,18 +346,22 @@ func (b *builder) hurt(h hurtEvent) {
 	})
 }
 
-// roundStart starts the next round once the last one has ended: the events
-// from now on are the next round's.
-func (b *builder) roundStart() {
+// roundStart starts the next round at tick once the last one has ended:
+// the events from now on are the next round's. The sightings of the last
+// round end, and the dead are alive again.
+func (b *builder) roundStart(tick int) {
+	b.tick = max(b.tick, tick)
 	if b.ended {
 		b.cur, b.ended = len(b.rounds)+1, false
+		b.endSightings(tick)
+		clear(b.dead)
 	}
 }
 
 // freezeTimeEnd notes who was alive when the freeze time of the round ended
 // at tick. It starts the round too, should the demo lack its start.
 func (b *builder) freezeTimeEnd(tick int, alive []playerRef) {
-	b.roundStart()
+	b.roundStart(tick)
 	b.freezeEnd = tick
 	b.alive = make([]Ref, 0, len(alive))
 	for i := range alive {
@@ -226,6 +372,7 @@ func (b *builder) freezeTimeEnd(tick int, alive []playerRef) {
 // roundEnd counts a round. A round without a winner, a draw, gets no number
 // and no score, but it counts as played, so check finds the gap.
 func (b *builder) roundEnd(e roundEndEvent) {
+	b.tick = max(b.tick, e.Tick)
 	b.played++
 	b.ended = true
 	alive, freezeEnd := b.alive, b.freezeEnd
@@ -345,7 +492,8 @@ func (b *builder) build(maxRounds int, game gameScore) Match {
 	b.check(game)
 	m.Warnings = b.warnings
 	m.Suspicious = len(m.Warnings) > 0
-	m.Kills, m.Hits = b.kills, b.hits
+	b.endSightings(b.tick)
+	m.Kills, m.Hits, m.Shots, m.Sightings, m.Flashes = b.kills, b.hits, b.shots, b.sightings, b.flashes
 	return m
 }
 

@@ -71,7 +71,10 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 	}
 
 	var openingWins, openingLosses, clutches int
+	var total Stats // of all players, for what any match has
 	for i, p := range ps {
+		total = total.plus(p.Match)
+		checkShootingAndGrenades(t, i, p.Match)
 		want := m.Players[i]
 		s := p.Match
 		if p.SteamID64 != want.SteamID64 || p.Team != want.Team {
@@ -118,5 +121,43 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 	// Two clutches a round at most: one a side.
 	if clutches > 2*len(m.Rounds) {
 		t.Errorf("%d clutches in %d rounds", clutches, len(m.Rounds))
+	}
+	// Any match has shots in sight, fights, duels, flashes and the like.
+	if total.AccuracyShots == 0 || total.FirstShotFights == 0 || total.MovingBase == 0 || total.RifleKillDuels == 0 ||
+		total.RifleHits == 0 || total.PistolHits == 0 || total.EnemiesFlashed == 0 || total.GrenadeDamage == 0 || total.DeathsWithGrenades == 0 {
+		t.Errorf("the match counts no shooting or grenades: %+v", total)
+	}
+}
+
+// checkShootingAndGrenades checks the bounds of the shooting and grenade
+// metrics of player i.
+func checkShootingAndGrenades(t *testing.T, i int, s Stats) {
+	t.Helper()
+	within := func(rate float64) bool { return rate >= 0 && rate <= 1 }
+	if s.AccuracyHits > s.AccuracyShots || s.FirstShotHits > s.FirstShotFights || s.MovingShots > s.MovingBase ||
+		!within(s.Accuracy) || !within(s.FirstShotAccuracy) || !within(s.MovingShotRate) {
+		t.Errorf("player %d: accuracy %d of %d, first shot %d of %d, on the move %d of %d", i,
+			s.AccuracyHits, s.AccuracyShots, s.FirstShotHits, s.FirstShotFights, s.MovingShots, s.MovingBase)
+	}
+	if s.RifleHeadHits > s.RifleHits || s.PistolHeadHits > s.PistolHits || s.RifleHits+s.PistolHits > s.BulletHits ||
+		s.RifleHeadHits+s.PistolHeadHits > s.HeadHits {
+		t.Errorf("player %d: rifles %d of %d in the head, pistols %d of %d, all bullets %d of %d", i,
+			s.RifleHeadHits, s.RifleHits, s.PistolHeadHits, s.PistolHits, s.HeadHits, s.BulletHits)
+	}
+	// A duel is a kill: a pause of KillTimeGap at most between its hits,
+	// and a rifle needs no more than a magazine.
+	if s.RifleKillDuels+s.SniperKillDuels > s.Kills || s.RifleKillTime < 0 || s.RifleKillTime > 10 || s.SniperKillTime < 0 || s.SniperKillTime > 10 {
+		t.Errorf("player %d: %d rifle duels of %v s, %d of sniper rifles of %v s, %d kills", i,
+			s.RifleKillDuels, s.RifleKillTime, s.SniperKillDuels, s.SniperKillTime, s.Kills)
+	}
+	// A flash blinds for seconds, not for minutes.
+	if s.EnemiesFlashed > 0 && (s.EnemyBlindTime < MinFlash.Seconds() || s.EnemyBlindTime > 10) {
+		t.Errorf("player %d: %d enemies blinded for %v s on average", i, s.EnemiesFlashed, s.EnemyBlindTime)
+	}
+	// Four grenades at most, two flashbangs among them: $1300 at most.
+	if s.GrenadeDamage > s.Damage || s.DeathsWithGrenades > s.Deaths || s.UnusedGrenadeValue > 1300*s.DeathsWithGrenades ||
+		(s.DeathsWithGrenades > 0) != (s.UnusedGrenadeValue > 0) {
+		t.Errorf("player %d: grenade damage %d of %d, %d of %d deaths with grenades worth $%d", i,
+			s.GrenadeDamage, s.Damage, s.DeathsWithGrenades, s.Deaths, s.UnusedGrenadeValue)
 	}
 }

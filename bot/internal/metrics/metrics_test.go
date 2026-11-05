@@ -38,6 +38,9 @@ type round struct {
 	alive         []demo.Ref
 	kills         []demo.Kill
 	hits          []demo.Hit
+	shots         []demo.Shot
+	sightings     []demo.Sighting
+	flashes       []demo.Flash
 }
 
 func newRound(side0, winner demo.Side) *round { return &round{side0: side0, winner: winner} }
@@ -85,6 +88,28 @@ func (r *round) hit(attacker, victim *demo.Ref, damage int, group demo.HitGroup,
 	r.hits = append(r.hits, demo.Hit{Attacker: attacker, Victim: *victim, Damage: damage, HitGroup: group, Class: c})
 }
 
+// hitAt adds a hit in the chest at tick and returns it to change.
+func (r *round) hitAt(tick int, attacker, victim *demo.Ref, damage int, c demo.WeaponClass) *demo.Hit {
+	r.hits = append(r.hits, demo.Hit{Tick: tick, Attacker: attacker, Victim: *victim, Damage: damage, HitGroup: demo.HitChest, Class: c})
+	return &r.hits[len(r.hits)-1]
+}
+
+// shot adds a shot at tick, standing still, and returns it to change.
+func (r *round) shot(tick int, shooter *demo.Ref, c demo.WeaponClass) *demo.Shot {
+	r.shots = append(r.shots, demo.Shot{Tick: tick, Shooter: *shooter, Class: c, MaxSpeed: 215})
+	return &r.shots[len(r.shots)-1]
+}
+
+// sees adds a sighting of target by spotter from tick from to tick to.
+func (r *round) sees(from, to int, spotter, target *demo.Ref) {
+	r.sightings = append(r.sightings, demo.Sighting{Spotter: *spotter, Target: *target, From: from, To: to})
+}
+
+// flash adds a flash; thrower nil is unknown.
+func (r *round) flash(thrower, victim *demo.Ref, seconds float64) {
+	r.flashes = append(r.flashes, demo.Flash{Thrower: thrower, Victim: *victim, Duration: seconds})
+}
+
 // play adds the round to the match.
 func (g *game) play(r *round) {
 	n := len(g.m.Rounds) + 1
@@ -107,6 +132,26 @@ func (g *game) play(r *round) {
 		h.Round = n
 		g.m.Hits = append(g.m.Hits, h)
 	}
+	for _, s := range r.shots {
+		s.Round = n
+		g.m.Shots = append(g.m.Shots, s)
+	}
+	for _, s := range r.sightings {
+		s.Round = n
+		g.m.Sightings = append(g.m.Sightings, s)
+	}
+	for _, f := range r.flashes {
+		f.Round = n
+		g.m.Flashes = append(g.m.Flashes, f)
+	}
+}
+
+// stats returns the stats of the player id on side.
+func stats(ps map[uint64]Player, id uint64, side demo.Side) Stats {
+	if side == demo.T {
+		return ps[id].T
+	}
+	return ps[id].CT
 }
 
 // compute computes the metrics and checks that the sides add up to the

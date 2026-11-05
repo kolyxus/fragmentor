@@ -15,8 +15,9 @@ type roundFacts struct {
 	traded    map[*player]bool // a death of theirs was traded
 }
 
-// round counts the round r with its kills and hits, in their order.
-func (c *counter) round(r demo.Round, kills []demo.Kill, hits []demo.Hit) {
+// round counts the round r with its events.
+func (c *counter) round(r demo.Round, e events) {
+	kills, hits := e.kills, e.hits
 	side := func(p *player) *Stats { return p.on(r.Side(p.team)) }
 	f := roundFacts{
 		freezeEnd: r.FreezeEndTick,
@@ -33,6 +34,9 @@ func (c *counter) round(r demo.Round, kills []demo.Kill, hits []demo.Hit) {
 	c.opening(kills, side)
 	c.trades(kills, side, f)
 	c.clutches(r, kills, side)
+	c.shooting(e, side)
+	c.killTimes(hits, side)
+	c.grenades(e, side)
 
 	started := make(map[uint64]bool)
 	for _, a := range r.Alive {
@@ -95,11 +99,22 @@ func (c *counter) asFACEIT(kills []demo.Kill, hits []demo.Hit, side func(*player
 		}
 		s := side(a)
 		s.Damage += h.Damage
-		if bullet(h.Class) && !computerBot(h.Victim) {
-			s.BulletHits++
-			if h.HitGroup == demo.HitHead {
-				s.HeadHits++
-			}
+		if !bullet(h.Class) || computerBot(h.Victim) {
+			continue
+		}
+		head := 0
+		if h.HitGroup == demo.HitHead {
+			head = 1
+		}
+		s.BulletHits++
+		s.HeadHits += head
+		switch h.Class {
+		case demo.ClassRifle:
+			s.RifleHits++
+			s.RifleHeadHits += head
+		case demo.ClassPistol:
+			s.PistolHits++
+			s.PistolHeadHits += head
 		}
 	}
 }

@@ -9,8 +9,9 @@ bot/data/
 *.db
 *.db-shm
 *.db-wal
-bot/testdata/*.dem
-bot/testdata/*.dem.*
+# bot/testdata: демки, их сводки и чужие цифры для сверки, в git только README
+bot/testdata/*
+!bot/testdata/README.md
 
 # Сборка
 bot/bin/

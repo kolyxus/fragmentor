@@ -81,6 +81,7 @@ func testDemos(t *testing.T) []string {
 // TestParseTestdata checks what holds for any FACEIT match. That the numbers
 // are FACEIT's is checked by go run ./cmd/parsedemo -faceit testdata.
 func TestParseTestdata(t *testing.T) {
+	twoFlashbangs := 0 // deaths with two flashbangs in all the demos
 	for _, file := range testDemos(t) {
 		t.Run(filepath.Base(file)[:10], func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -126,8 +127,72 @@ func TestParseTestdata(t *testing.T) {
 				t.Errorf("players per team %v, want 5 and 5", perTeam)
 			}
 			checkEvents(t, m)
+			twoFlashbangs += checkJournals(t, m)
 		})
 	}
+	// The ammo of the pawn counts the second flashbang: in a few matches
+	// someone dies with two.
+	if !t.Failed() && twoFlashbangs == 0 {
+		t.Error("nobody died with two flashbangs in any demo: the second flashbang is lost")
+	}
+}
+
+// checkJournals checks the shots, sightings, flashes and grenades of a real
+// match, and returns how many died with two flashbangs.
+func checkJournals(t *testing.T, m *Match) int {
+	t.Helper()
+	inRound := func(round int) bool { return round >= 1 && round <= len(m.Rounds) }
+	last := 0
+	for i, s := range m.Shots {
+		if !inRound(s.Round) || s.Tick < last || !gun(s.Class) || s.Weapon == "" || s.Shooter.Side == "" ||
+			s.MaxSpeed <= 0 || s.Speed < 0 || s.Speed > 1000 {
+			t.Errorf("shot %d = %+v", i, s)
+		}
+		last = s.Tick
+	}
+	if len(m.Shots) < 1000 {
+		t.Errorf("%d shots in a match", len(m.Shots))
+	}
+	for i, s := range m.Sightings {
+		bad := !inRound(s.Round) || s.From > s.To || s.Spotter.Side == "" || s.Target.Side == "" || s.Spotter.Side == s.Target.Side
+		// A sighting ends when the next round starts, before its freeze time ends.
+		if !bad && s.Round < len(m.Rounds) && s.To > m.Rounds[s.Round].FreezeEndTick {
+			bad = true
+		}
+		if bad {
+			t.Errorf("sighting %d = %+v", i, s)
+		}
+	}
+	if len(m.Sightings) < 100 {
+		t.Errorf("%d sightings in a match", len(m.Sightings))
+	}
+	for i, f := range m.Flashes {
+		if !inRound(f.Round) || f.Duration <= 0 || f.Duration > 10 || f.Victim.Side == "" || f.Thrower == nil {
+			t.Errorf("flash %d = %+v", i, f)
+		}
+	}
+	if len(m.Flashes) == 0 {
+		t.Error("no flashes in a match")
+	}
+	two := 0
+	for i, k := range m.Kills {
+		flashbangs := 0
+		for _, g := range k.Grenades {
+			if GrenadePrice(g) == 0 {
+				t.Errorf("kill %d: %q is no grenade", i, g)
+			}
+			if g == Flashbang {
+				flashbangs++
+			}
+		}
+		if flashbangs > 2 {
+			t.Errorf("kill %d: %d flashbangs", i, flashbangs)
+		}
+		if flashbangs == 2 {
+			two++
+		}
+	}
+	return two
 }
 
 // checkEvents checks the events of a real match: every kill and hit falls

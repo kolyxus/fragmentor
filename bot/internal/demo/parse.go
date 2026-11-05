@@ -157,7 +157,7 @@ func newCollector(p *demoinfocs.Parser) *collector {
 	})
 	p.RegisterEventHandler(func(events.RoundStart) {
 		if c.live() {
-			c.b.roundStart()
+			c.b.roundStart(c.gs.IngameTick())
 		}
 	})
 	p.RegisterEventHandler(c.onFreezeTimeEnd)
@@ -165,7 +165,82 @@ func newCollector(p *demoinfocs.Parser) *collector {
 	p.RegisterEventHandler(func(e events.Kill) { c.kill, c.killTick = &e, c.gs.IngameTick() })
 	p.RegisterEventHandler(func(e events.PlayerHurt) { c.hurt, c.hurtTick = &e, c.gs.IngameTick() })
 	p.RegisterEventHandler(c.onGameEvent)
+	p.RegisterEventHandler(c.onWeaponFire)
+	p.RegisterEventHandler(c.onSpottersChanged)
+	p.RegisterEventHandler(c.onFlashed)
 	return c
+}
+
+// onWeaponFire logs a shot of a gun. On CS2 the library makes the event of
+// the last shot time of the weapon and names whose pawn owns it: the body,
+// a bot for a bot that a player controls.
+func (c *collector) onWeaponFire(e events.WeaponFire) {
+	if !c.live() || e.Shooter == nil || e.Weapon == nil {
+		return
+	}
+	class := weaponClass(e.Weapon)
+	if !gun(class) {
+		return
+	}
+	v := e.Shooter.Velocity()
+	c.b.shot(shotEvent{
+		Tick:     c.gs.IngameTick(),
+		Shooter:  c.bodyOf(e.Shooter),
+		Weapon:   weaponName(e.Weapon),
+		Class:    class,
+		Speed:    math.Hypot(v.X, v.Y),
+		MaxSpeed: maxSpeed(e.Weapon.Type, e.Weapon.ZoomLevel() > 0),
+	})
+}
+
+// onSpottersChanged notes who sees the body whose spotted flag changed:
+// the game keeps a flag for each player who has the body in sight.
+func (c *collector) onSpottersChanged(e events.PlayerSpottersChanged) {
+	if !c.live() || e.Spotted == nil {
+		return
+	}
+	var by []playerRef
+	for _, o := range c.gs.Participants().Playing() {
+		if o != e.Spotted && e.Spotted.IsSpottedBy(o) {
+			by = append(by, *c.bodyOf(o))
+		}
+	}
+	c.b.spotted(c.gs.IngameTick(), c.bodyOf(e.Spotted), by)
+}
+
+// onFlashed logs a living body blinded by a flashbang. The library makes
+// the event at the end of the frame, once the flash duration of the body
+// is set, and takes the thrower from the flashbang.
+func (c *collector) onFlashed(e events.PlayerFlashed) {
+	if !c.live() || e.Player == nil || !e.Player.IsAlive() {
+		return
+	}
+	d := e.FlashDuration()
+	if d <= 0 {
+		return
+	}
+	c.b.flash(flashEvent{
+		Tick:     c.gs.IngameTick(),
+		Thrower:  c.bodyOf(e.Attacker),
+		Victim:   c.bodyOf(e.Player),
+		Duration: d.Seconds(),
+	})
+}
+
+// bodyOf returns the ref of the body p. A bot that a player controls gets
+// that player as its Controller.
+func (c *collector) bodyOf(p *common.Player) *playerRef {
+	r := ref(p)
+	if r == nil || !p.IsBot {
+		return r
+	}
+	for _, h := range c.gs.Participants().Playing() {
+		if !h.IsBot && h.IsControllingBot() && h.ControlledBot() == p {
+			r.Controller = h.SteamID64
+			break
+		}
+	}
+	return r
 }
 
 func (c *collector) reset() {
@@ -194,15 +269,19 @@ func (c *collector) onGameEvent(e events.GenericGameEvent) {
 		if !c.live() {
 			return
 		}
+		victim := c.victim(k.Victim, e.Data)
 		ev := killEvent{
 			Tick:        tick,
 			Killer:      ref(k.Killer),
-			Victim:      c.body(k.Victim, e.Data),
+			Victim:      c.bodyRef(victim, k.Victim),
 			Assister:    ref(k.Assister),
 			FlashAssist: k.AssistedFlash,
 			Headshot:    k.IsHeadshot,
 			Weapon:      weaponName(k.Weapon),
 			Class:       weaponClass(k.Weapon),
+			// Entities update after the events of a tick: the inventory
+			// is still what the body carried.
+			Grenades: grenades(victim),
 		}
 		self := k.Victim != nil && k.Killer == k.Victim && ev.Class == ClassWorld
 		if self {
@@ -258,15 +337,10 @@ func (c *collector) onDisconnect(tick int, data map[string]*msg.CMsgSource1Legac
 	}
 }
 
-// body returns the ref of whose body an event happened to: the player
-// whose pawn the raw event names, see victim. A bot that a player controls
-// gets that player as its Controller.
-func (c *collector) body(lib *common.Player, data map[string]*msg.CMsgSource1LegacyGameEventKeyT) *playerRef {
-	return c.bodyRef(c.victim(lib, data), lib)
-}
-
-// bodyRef returns the ref of the body p; lib is the player the library
-// named, the controller of a bot it differs from.
+// bodyRef returns the ref of whose body an event happened to, p, the
+// player whose pawn the raw event names, see victim; lib is the player the
+// library named, the controller of a bot it differs from. A bot that a
+// player controls gets that player as its Controller.
 func (c *collector) bodyRef(p, lib *common.Player) *playerRef {
 	r := ref(p)
 	if r != nil && p != lib && p.IsBot && lib != nil && !lib.IsBot {
@@ -382,51 +456,6 @@ func ref(p *common.Player) *playerRef {
 		id = uint64(p.UserID) + 1
 	}
 	return &playerRef{ID: id, Name: p.Name, Side: side(p.Team), Bot: p.IsBot}
-}
-
-func weaponName(w *common.Equipment) string {
-	if w == nil {
-		return ""
-	}
-	return w.Type.String()
-}
-
-// weaponClass tells the kind of the weapon. The library's classes put
-// shotguns and machine guns together, snipers among rifles, the knife and
-// the zeus among the equipment and fire among the grenades.
-func weaponClass(w *common.Equipment) WeaponClass {
-	if w == nil {
-		return ClassOther
-	}
-	switch w.Type {
-	case common.EqSawedOff, common.EqNova, common.EqSwag7, common.EqXM1014:
-		return ClassShotgun
-	case common.EqM249, common.EqNegev:
-		return ClassMachineGun
-	case common.EqSSG08, common.EqAWP, common.EqScar20, common.EqG3SG1:
-		return ClassSniper
-	case common.EqKnife, common.EqFists, common.EqAxe, common.EqHammer, common.EqWrench:
-		return ClassKnife
-	case common.EqZeus:
-		return ClassZeus
-	case common.EqMolotov, common.EqIncendiary:
-		return ClassFire
-	case common.EqBomb:
-		return ClassBomb
-	case common.EqWorld:
-		return ClassWorld
-	}
-	switch w.Type.Class() {
-	case common.EqClassPistols:
-		return ClassPistol
-	case common.EqClassSMG:
-		return ClassSMG
-	case common.EqClassRifle:
-		return ClassRifle
-	case common.EqClassGrenade:
-		return ClassGrenade
-	}
-	return ClassOther
 }
 
 func hitGroup(g events.HitGroup) HitGroup {

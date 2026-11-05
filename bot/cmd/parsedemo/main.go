@@ -3,19 +3,22 @@
 // player's kills, deaths, assists, headshots and damage, and the metrics of
 // internal/metrics. It reports how long each demo took and the peak memory.
 // With -faceit it compares the score and K/D/A with the match stats of the
-// FACEIT Data API; with -csda, the metrics with those of cs-demo-analyzer.
+// FACEIT Data API; with -csda, the metrics with those of cs-demo-analyzer;
+// with -scope, the shooting metrics with the numbers of Scope.gg.
 // It exits with status 1 if a demo fails, its summary is suspicious (see
 // demo.Match) or anything differs from FACEIT.
 //
 // Run from bot/:
 //
-//	go run ./cmd/parsedemo [-faceit] [-csda folder] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
+//	go run ./cmd/parsedemo [-faceit] [-csda folder] [-scope file.json] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
 //
 // A folder stands for every *.dem.zst in it. For -faceit the match ID comes
 // from the file name, <match_id>-1-1.dem.zst, as FACEIT names its demos, and
 // FACEIT_API_KEY comes from the environment or .env, as for the bot. For
 // -csda the folder holds the JSON of cs-demo-analyzer for each demo, see
-// csda.go. -events adds the kills and hits of the match to the JSON.
+// csda.go; for -scope the file holds the numbers of Scope.gg, see scope.go.
+// -events adds the events of the match to the JSON: kills, hits, shots,
+// sightings, flashes and who was alive in each round.
 //
 // The summary holds nicknames and SteamIDs: keep its output out of the
 // repository.
@@ -51,8 +54,9 @@ func main() {
 	maxSize := flag.Int64("max-size", demo.DefaultMaxSize>>20, "limit of a decompressed demo, MiB")
 	parallel := flag.Int("parallel", 1, "how many demos to parse at once")
 	printJSON := flag.Bool("json", true, "print the summary as JSON")
-	printEvents := flag.Bool("events", false, "print the kills, hits and who was alive in each round in the JSON too")
+	printEvents := flag.Bool("events", false, "print the events of the match and who was alive in each round in the JSON too")
 	csdaDir := flag.String("csda", "", "folder with the JSON of cs-demo-analyzer to compare the metrics with")
+	scopePath := flag.String("scope", "", "JSON file with the numbers of Scope.gg to compare the shooting metrics with")
 	envPath := flag.String("env", ".env", "file with FACEIT_API_KEY, for -faceit")
 	flag.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "usage: parsedemo [flags] <file.dem.zst | folder>...")
@@ -78,6 +82,13 @@ func main() {
 		out:         os.Stdout,
 		log:         os.Stderr,
 		mem:         startSampler(),
+	}
+	if *scopePath != "" {
+		if r.scope, err = loadScope(*scopePath); err != nil {
+			fmt.Fprintln(os.Stderr, "parsedemo:", err)
+			os.Exit(2)
+		}
+		r.scopePairs = make(map[string][]scopePair)
 	}
 	if *withFACEIT {
 		cfg, err := config.Load(*envPath)
@@ -134,9 +145,13 @@ type runner struct {
 	printEvents bool
 	faceit      *faceit.Client // nil without -faceit
 	csdaDir     string         // "" without -csda
+	scope       scopeFile      // nil without -scope
 	out, log    io.Writer
 	mem         *sampler
 	mu          sync.Mutex // one demo writes at a time
+	// scopePairs collects the values of every demo for the summary of
+	// -scope, under mu.
+	scopePairs map[string][]scopePair
 }
 
 // run parses the files, n at a time, and reports whether all went well.
@@ -166,6 +181,11 @@ func (r *runner) run(files []string, n int) bool {
 		}
 	}
 	wg.Wait()
+	if r.scope != nil {
+		for _, l := range scopeSummary(r.scopePairs) {
+			fmt.Fprintln(r.log, l)
+		}
+	}
 	fmt.Fprintf(r.log, "peak memory of the process: %s\n", r.mem.peak())
 	return ok
 }
@@ -193,9 +213,18 @@ func (r *runner) one(path string, ownPeak bool) bool {
 		lines, err = compareCSDA(r.csdaDir, path, m, players)
 		report = append(report, lines...)
 	}
+	var scopePairs map[string][]scopePair
+	if err == nil && r.scope != nil {
+		var lines []string
+		lines, scopePairs = compareScope(r.scope, path, m, players)
+		report = append(report, lines...)
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	for name, ps := range scopePairs {
+		r.scopePairs[name] = append(r.scopePairs[name], ps...)
+	}
 	name := filepath.Base(path)
 	if err != nil {
 		fmt.Fprintf(r.log, "%s: %v\n", name, err)
@@ -237,11 +266,11 @@ func (r *runner) one(path string, ownPeak bool) bool {
 	return mismatches == 0 && !m.Suspicious
 }
 
-// withoutEvents returns a copy of m without its kills, hits and who was
-// alive in each round, which make the JSON long.
+// withoutEvents returns a copy of m without its events and who was alive in
+// each round, which make the JSON long.
 func withoutEvents(m *demo.Match) *demo.Match {
 	out := *m
-	out.Kills, out.Hits = nil, nil
+	out.Kills, out.Hits, out.Shots, out.Sightings, out.Flashes = nil, nil, nil, nil, nil
 	out.Rounds = slices.Clone(m.Rounds)
 	for i := range out.Rounds {
 		out.Rounds[i].Alive = nil

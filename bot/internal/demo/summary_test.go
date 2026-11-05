@@ -353,7 +353,7 @@ func TestBuilderLogsEvents(t *testing.T) {
 	endRound(b, roundEndEvent{Tick: 20, Winner: CT, Players: sides(CT)})
 	// After the end of round 1 until round 2 starts: the bomb, a late kill.
 	b.kill(killEvent{Tick: 21, Victim: human(5, T), Weapon: "C4", Class: ClassBomb})
-	b.roundStart()
+	b.roundStart(25)
 	b.kill(killEvent{Tick: 30, Killer: human(6, T), Victim: human(6, T), Weapon: "World", Class: ClassWorld, Disconnect: true})
 	b.kill(killEvent{Tick: 31, Killer: t1, Victim: ct1, FlashAssist: true, Weapon: "Glock-18", Class: ClassPistol})
 	b.leftServer(len(b.kills) - 1)
@@ -456,5 +456,90 @@ func TestRoundSide(t *testing.T) {
 		if got := r.Side(tc.team); got != tc.want {
 			t.Errorf("round won by %d on %s: team %d played %s, want %s", tc.winner, tc.winnerSide, tc.team, got, tc.want)
 		}
+	}
+}
+
+func TestBuilderSightings(t *testing.T) {
+	b := newBuilder()
+	ct1, ct2, t1, t2 := human(1, CT), human(2, CT), human(4, T), human(5, T)
+	b.freezeTimeEnd(100, sides(CT))
+	b.spotted(110, t1, []playerRef{*ct1, *ct2, *t2}) // the flag of a teammate does not count
+	b.spotted(120, t1, []playerRef{*ct2})            // ct1 lost sight of t1
+	b.spotted(130, ct1, []playerRef{*t1})
+	b.kill(killEvent{Tick: 140, Killer: ct2, Victim: t1}) // t1 neither sees nor is seen any more
+	b.spotted(150, t1, []playerRef{*ct2})                 // the flag of a dead body
+	b.spotted(150, ct2, []playerRef{*t1, *t2})            // t1 is dead, t2 sees ct2
+	b.spotted(155, ct1, []playerRef{*t2})
+	// ct1 leaves the server and is back: a disconnect is no death.
+	b.kill(killEvent{Tick: 160, Killer: ct1, Victim: ct1, Disconnect: true, Weapon: "World", Class: ClassWorld})
+	b.spotted(170, ct1, []playerRef{*t2})
+	b.roundEnd(roundEndEvent{Tick: 200, Winner: CT, Players: sides(CT)})
+	b.spotted(210, ct2, []playerRef{*t2}) // no change: still in sight
+	b.roundStart(300)                     // the sightings of round 1 end, the dead live
+	b.freezeTimeEnd(400, sides(CT))
+	b.spotted(410, t1, []playerRef{*ct1}) // never lost: ends with the demo
+	b.roundEnd(roundEndEvent{Tick: 500, Winner: CT, Players: sides(CT)})
+	m := b.build(24, game(b))
+
+	ref := func(p *playerRef) Ref { return *p.export() }
+	want := []Sighting{
+		{Round: 1, Spotter: ref(ct1), Target: ref(t1), From: 110, To: 120},
+		{Round: 1, Spotter: ref(ct2), Target: ref(t1), From: 110, To: 140},
+		{Round: 1, Spotter: ref(t1), Target: ref(ct1), From: 130, To: 140},
+		{Round: 1, Spotter: ref(t2), Target: ref(ct2), From: 150, To: 300},
+		{Round: 1, Spotter: ref(t2), Target: ref(ct1), From: 155, To: 160},
+		{Round: 1, Spotter: ref(t2), Target: ref(ct1), From: 170, To: 300},
+		{Round: 2, Spotter: ref(ct1), Target: ref(t1), From: 410, To: 500},
+	}
+	if !slices.Equal(m.Sightings, want) {
+		t.Errorf("sightings =\n%+v\nwant\n%+v", m.Sightings, want)
+	}
+}
+
+func TestBuilderShotsAndFlashes(t *testing.T) {
+	b := newBuilder()
+	b.shot(shotEvent{Tick: 5, Shooter: human(1, CT), Weapon: "AK-47", Class: ClassRifle})
+	b.flash(flashEvent{Tick: 6, Thrower: human(4, T), Victim: human(1, CT), Duration: 2})
+	b.reset() // the warmup is forgotten
+	b.freezeTimeEnd(100, sides(CT))
+	b.shot(shotEvent{Tick: 110, Shooter: human(1, CT), Weapon: "M4A4", Class: ClassRifle, Speed: 50, MaxSpeed: 225})
+	b.shot(shotEvent{Tick: 111, Weapon: "M4A4", Class: ClassRifle}) // nobody fired: not logged
+	b.flash(flashEvent{Tick: 120, Thrower: human(4, T), Victim: human(1, CT), Duration: 2.5})
+	b.flash(flashEvent{Tick: 121, Thrower: human(4, T), Duration: 3}) // nobody blinded: not logged
+	b.roundEnd(roundEndEvent{Tick: 200, Winner: CT, Players: sides(CT)})
+	b.shot(shotEvent{Tick: 210, Shooter: human(5, T), Weapon: "Glock-18", Class: ClassPistol, Speed: 3, MaxSpeed: 240})
+	b.flash(flashEvent{Tick: 220, Victim: bot(T), Duration: 1}) // the thrower is unknown
+	m := b.build(24, game(b))
+
+	wantShots := []Shot{
+		{Tick: 110, Round: 1, Shooter: Ref{ID: 1, Side: CT}, Weapon: "M4A4", Class: ClassRifle, Speed: 50, MaxSpeed: 225},
+		{Tick: 210, Round: 1, AfterRoundEnd: true, Shooter: Ref{ID: 5, Side: T}, Weapon: "Glock-18", Class: ClassPistol, Speed: 3, MaxSpeed: 240},
+	}
+	if !slices.Equal(m.Shots, wantShots) {
+		t.Errorf("shots =\n%+v\nwant\n%+v", m.Shots, wantShots)
+	}
+	if len(m.Flashes) != 2 {
+		t.Fatalf("flashes = %+v, want two", m.Flashes)
+	}
+	if f := m.Flashes[0]; f.Tick != 120 || f.Round != 1 || f.AfterRoundEnd || f.Thrower == nil || *f.Thrower != (Ref{ID: 4, Side: T}) ||
+		f.Victim != (Ref{ID: 1, Side: CT}) || f.Duration != 2.5 {
+		t.Errorf("flash 1 = %+v", f)
+	}
+	if f := m.Flashes[1]; f.Tick != 220 || f.Round != 1 || !f.AfterRoundEnd || f.Thrower != nil || f.Victim != (Ref{Bot: true, Side: T}) || f.Duration != 1 {
+		t.Errorf("flash 2 = %+v", f)
+	}
+}
+
+func TestBuilderKillGrenades(t *testing.T) {
+	b := newBuilder()
+	b.kill(killEvent{Tick: 10, Killer: human(4, T), Victim: human(1, CT), Grenades: []string{Flashbang, Flashbang, HEGrenade}})
+	b.kill(killEvent{Tick: 11, Killer: human(1, CT), Victim: human(5, T)})
+	endRound(b, end(CT, sides(CT)))
+	m := b.build(24, game(b))
+	if got := m.Kills[0].Grenades; !slices.Equal(got, []string{Flashbang, Flashbang, HEGrenade}) {
+		t.Errorf("grenades of the first victim = %q", got)
+	}
+	if got := m.Kills[1].Grenades; got != nil {
+		t.Errorf("grenades of the second victim = %q, want none", got)
 	}
 }
