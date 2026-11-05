@@ -44,8 +44,10 @@ Fragmentor — ИИ-тренер по CS2 в Telegram (@fragmentor_ai_bot, са�
 - Go, последняя стабильная версия. Один Go-модуль в `bot/`.
 - Telegram: `github.com/go-telegram/bot`, long polling. Если библиотека заброшена —
   не меняй молча, предложи замену и спроси.
-- Парсер демок: `github.com/markus-wa/demoinfocs-golang`, последняя мажорная версия
-  (проверь на pkg.go.dev, в октябре 2026 это была v6).
+- Парсер демок: `github.com/markus-wa/demoinfocs-golang/v6`. Стабильной v6 пока нет (ноябрь 2026),
+  берём пре-релиз `v6.0.0-rc.1`, закреплённый точно; запасной вариант — стабильная `v5.2.0`.
+  Весь код, который зависит от demoinfocs, — только в `internal/demo`. Когда выйдет `v6.0.0`,
+  переходим на неё и заново прогоняем сверку `go run ./cmd/parsedemo -faceit testdata`.
 - Демки FACEIT приходят как `.dem.zst`. Распаковка потоком через
   `github.com/klauspost/compress/zstd` прямо в парсер, распакованный файл на диск не пишем.
 - Хранилище: SQLite через `modernc.org/sqlite` (без CGO). Миграции — SQL-файлы,

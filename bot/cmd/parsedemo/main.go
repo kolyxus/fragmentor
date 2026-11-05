@@ -1,0 +1,234 @@
+// Command parsedemo parses FACEIT demos, .dem.zst files, and prints the
+// summary of each as JSON: the map, the rounds with the score, and every
+// player's kills, deaths, assists, headshots and damage. It reports how long
+// each demo took and the peak memory. With -faceit it compares the score and
+// K/D/A with the match stats of the FACEIT Data API. It exits with status 1
+// if a demo fails, its summary is suspicious (see demo.Match) or anything
+// differs from FACEIT.
+//
+// Run from bot/:
+//
+//	go run ./cmd/parsedemo [-faceit] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
+//
+// A folder stands for every *.dem.zst in it. For -faceit the match ID comes
+// from the file name, <match_id>-1-1.dem.zst, as FACEIT names its demos, and
+// FACEIT_API_KEY comes from the environment or .env, as for the bot.
+//
+// The summary holds nicknames and SteamIDs: keep its output out of the
+// repository.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/kolyxus/fragmentor/bot/internal/config"
+	"github.com/kolyxus/fragmentor/bot/internal/demo"
+	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+)
+
+// faceitTimeout bounds the two requests to FACEIT for one demo.
+const faceitTimeout = 30 * time.Second
+
+func main() {
+	withFACEIT := flag.Bool("faceit", false, "compare the score and K/D/A with the FACEIT match stats")
+	timeout := flag.Duration("timeout", 5*time.Minute, "time limit for one demo")
+	maxSize := flag.Int64("max-size", demo.DefaultMaxSize>>20, "limit of a decompressed demo, MiB")
+	parallel := flag.Int("parallel", 1, "how many demos to parse at once")
+	printJSON := flag.Bool("json", true, "print the summary as JSON")
+	envPath := flag.String("env", ".env", "file with FACEIT_API_KEY, for -faceit")
+	flag.Usage = func() {
+		fmt.Fprintln(flag.CommandLine.Output(), "usage: parsedemo [flags] <file.dem.zst | folder>...")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	files, err := demoFiles(flag.Args())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "parsedemo:", err)
+		os.Exit(2)
+	}
+	if len(files) == 0 {
+		flag.Usage()
+		os.Exit(2)
+	}
+	r := &runner{
+		opts:      demo.Options{MaxSize: *maxSize << 20},
+		timeout:   *timeout,
+		printJSON: *printJSON,
+		out:       os.Stdout,
+		log:       os.Stderr,
+		mem:       startSampler(),
+	}
+	if *withFACEIT {
+		cfg, err := config.Load(*envPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "parsedemo: load config:", err)
+			os.Exit(2)
+		}
+		r.faceit = faceit.New(cfg.FaceitAPIKey)
+	}
+	if !r.run(files, max(*parallel, 1)) {
+		os.Exit(1)
+	}
+}
+
+// demoFiles expands the arguments: a folder stands for its *.dem.zst files.
+func demoFiles(args []string) ([]string, error) {
+	var files []string
+	for _, arg := range args {
+		info, err := os.Stat(arg)
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			files = append(files, arg)
+			continue
+		}
+		matches, err := filepath.Glob(filepath.Join(arg, "*.dem.zst"))
+		if err != nil {
+			return nil, err
+		}
+		slices.Sort(matches)
+		files = append(files, matches...)
+	}
+	return files, nil
+}
+
+// matchFileRe is the name FACEIT gives a demo: the match ID, then the map
+// and the part.
+var matchFileRe = regexp.MustCompile(`^(1-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-\d+-\d+\.dem\.zst$`)
+
+// matchID returns the FACEIT match ID from the name of a demo file.
+func matchID(path string) (string, bool) {
+	m := matchFileRe.FindStringSubmatch(strings.ToLower(filepath.Base(path)))
+	if m == nil || !faceit.ValidMatchID(m[1]) {
+		return "", false
+	}
+	return m[1], true
+}
+
+type runner struct {
+	opts      demo.Options
+	timeout   time.Duration
+	printJSON bool
+	faceit    *faceit.Client // nil without -faceit
+	out, log  io.Writer
+	mem       *sampler
+	mu        sync.Mutex // one demo writes at a time
+}
+
+// run parses the files, n at a time, and reports whether all went well.
+func (r *runner) run(files []string, n int) bool {
+	var (
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, n)
+		ok  = true
+		okm sync.Mutex
+	)
+	for _, f := range files {
+		if n == 1 {
+			// One at a time, so the peak memory of each demo is its own.
+			r.mem.reset()
+		}
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			if !r.one(f, n == 1) {
+				okm.Lock()
+				ok = false
+				okm.Unlock()
+			}
+		})
+		if n == 1 {
+			wg.Wait()
+		}
+	}
+	wg.Wait()
+	fmt.Fprintf(r.log, "peak memory of the process: %s\n", r.mem.peak())
+	return ok
+}
+
+// one parses a demo and prints its summary and report. ownPeak means no
+// other demo was parsed at the same time.
+func (r *runner) one(path string, ownPeak bool) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+	start := time.Now()
+	m, err := demo.ParseFile(ctx, path, r.opts)
+	elapsed := time.Since(start)
+
+	var report []string
+	mismatches := 0
+	if err == nil && r.faceit != nil {
+		report, mismatches, err = r.compare(path, m)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	name := filepath.Base(path)
+	if err != nil {
+		fmt.Fprintf(r.log, "%s: %v\n", name, err)
+		if pe, ok := errors.AsType[*demo.PanicError](err); ok {
+			fmt.Fprintf(r.log, "%s\n", pe.Stack)
+		}
+		return false
+	}
+	if r.printJSON {
+		b, err := json.MarshalIndent(struct {
+			File string `json:"file"`
+			*demo.Match
+		}{name, m}, "", "  ")
+		if err != nil {
+			fmt.Fprintf(r.log, "%s: encode: %v\n", name, err)
+			return false
+		}
+		fmt.Fprintf(r.out, "%s\n", b)
+	}
+	line := fmt.Sprintf("%s: %s, %d rounds, %d:%d, parsed in %.1f s", name, m.Map, len(m.Rounds), m.Teams[0].Score, m.Teams[1].Score, elapsed.Seconds())
+	if ownPeak {
+		line += ", peak memory " + r.mem.peak()
+	}
+	fmt.Fprintln(r.log, line)
+	if m.Suspicious {
+		fmt.Fprintln(r.log, "  SUSPICIOUS: the summary may be wrong")
+	}
+	for _, w := range m.Warnings {
+		fmt.Fprintf(r.log, "  warning: %s\n", w)
+	}
+	for _, l := range report {
+		fmt.Fprintln(r.log, l)
+	}
+	return mismatches == 0 && !m.Suspicious
+}
+
+// compare fetches the match from FACEIT and compares it with the demo.
+func (r *runner) compare(path string, m *demo.Match) ([]string, int, error) {
+	id, ok := matchID(path)
+	if !ok {
+		return nil, 0, errors.New("no FACEIT match ID in the file name, expected <match_id>-1-1.dem.zst")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), faceitTimeout)
+	defer cancel()
+	details, err := r.faceit.Match(ctx, id)
+	if err != nil {
+		return nil, 0, err
+	}
+	stats, err := r.faceit.MatchStats(ctx, id)
+	if err != nil {
+		return nil, 0, err
+	}
+	report, mismatches := compare(m, details, stats)
+	return report, mismatches, nil
+}

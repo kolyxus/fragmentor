@@ -43,7 +43,8 @@ RestartSec=5
 #   without MemorySwapMax the bot could take all of it.
 # - OOMScoreAdjust: if the whole system runs out of memory, the bot is the
 #   first victim.
-# Provisional: revisit after measuring the parser's peak memory on step 4.
+# Checked on step 4: parsing two demos at once peaks at 98-115 MiB of RSS,
+# far below these limits; see docs/DECISIONS.md.
 Environment=GOMEMLIMIT=320MiB
 MemoryHigh=380M
 MemoryMax=400M
