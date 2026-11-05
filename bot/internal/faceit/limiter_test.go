@@ -93,7 +93,9 @@ func TestLimiterWait(t *testing.T) {
 		t.Errorf("slept %v, want one 100ms pause", slept)
 	}
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	// The limiter compares the deadline with its own clock, so the deadline
+	// comes from the fake clock too, never from time.Now.
+	ctx, cancel := context.WithDeadline(context.Background(), clock.t.Add(-time.Second))
 	defer cancel()
 	if err := l.wait(ctx, sleep); !errors.Is(err, errRateWait) {
 		t.Errorf("wait() with a passed deadline = %v, want errRateWait", err)
