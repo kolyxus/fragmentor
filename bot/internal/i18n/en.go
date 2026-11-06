@@ -66,6 +66,70 @@ Level %d · %d ELO`,
 	TimezoneAsk:    `Tap the time your clock shows now`,
 	TimezoneSaved:  `Time zone saved.`,
 
+	HelpDemo: `Match analysis: send me the link to the demo of your match from your browser's downloads, and I'll analyze it and save the stats. How to get the link: the button below.`,
+
+	DemoClosed: `Demo analysis opens with the beta.`,
+
+	DemoHowToButton: "How to get the link",
+
+	DemoHowTo: `How to send a demo for analysis:
+1. Open your match on faceit.com and press "Watch demo". The browser starts downloading a .dem.zst file; you can cancel the download right away.
+2. Open your browser's downloads: Ctrl+J.
+3. Right-click the link under the file name and choose "Copy link address".
+4. Send me the link straight away: FACEIT gives it for only 5 minutes.`,
+
+	DemoBadLink: `That doesn't look like a link to a FACEIT demo. I need the link from your browser's downloads; how to get it: the button below.`,
+
+	DemoUnsigned: `FACEIT won't give the demo by this link: it has no signature. I need the link from your browser's downloads; how to get it: the button below.`,
+
+	DemoExpired: `The link has expired: FACEIT gives it for only a few minutes. Download the demo again and send me the fresh link right away.`,
+
+	DemoNoAccount: `To analyze a match, link your FACEIT account first: /link`,
+
+	DemoNotFound: `FACEIT doesn't know this match. Check the link.`,
+
+	DemoNotFinished: `This match isn't over on FACEIT yet.`,
+
+	DemoMultiMap: `For now I only analyze matches of a single map.`,
+
+	DemoNotYours: `%s didn't play in this match. I analyze the matches of the linked account: /link`,
+
+	DemoDuplicate: `This demo is already in the queue.`,
+
+	DemoTooMany: `You can have at most %d demos in the queue at once. Send the next one when I've analyzed these.`,
+
+	DemoQueueTooLong: `The queue is long right now: your demo would be number %d, and I'd get to it in about %d min, but the link won't last that long. Send a fresh link in about %d min.`,
+
+	DemoAlready: `This match is already analyzed: %s, %d:%d.`,
+
+	DemoQueued:    `Your demo is in the queue, place %d. I'll start the analysis %s.`,
+	DemoSoon:      "in under a minute",
+	DemoInMinutes: "in about %d min",
+
+	DemoRunning: `Analyzing the demo. It usually takes under a minute.`,
+
+	DemoDone: `Done: %s, %d:%d. I've analyzed the demo and saved the match stats. The written breakdown with your mistakes and a drill comes in the next version of the bot.`,
+
+	DemoFailExpired: `The link expired while the demo waited in the queue. Download the demo again and send me a fresh link.`,
+
+	DemoFailRejected: `FACEIT wouldn't give the demo by this link; it has most likely expired. Download the demo again and send me the fresh link right away.`,
+
+	DemoFailGone: `FACEIT no longer keeps this demo.`,
+
+	DemoFailDownload: `I couldn't download the demo. Send a fresh link a bit later.`,
+
+	DemoFailTooLarge: `The demo is too large, I can't analyze it.`,
+
+	DemoFailBroken: `I couldn't analyze the demo: the file is broken or it isn't from this match.`,
+
+	DemoFailFaceit: `FACEIT didn't respond, so I couldn't check the match. Send a fresh link in a couple of minutes.`,
+
+	DemoFailNotLinked: `Your FACEIT account was unlinked, so the analysis is cancelled. Link it again: /link`,
+
+	DemoFailNotYours: `The account linked now didn't play in this match, so the analysis is cancelled.`,
+
+	DemoFailed: `I couldn't analyze the demo. Please try again later.`,
+
 	CommandStart:   "Join the beta waitlist",
 	CommandLink:    "Link your FACEIT nickname",
 	CommandMatches: "Your latest matches",

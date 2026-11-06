@@ -16,6 +16,7 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	"github.com/kolyxus/fragmentor/bot/internal/analysis"
 	"github.com/kolyxus/fragmentor/bot/internal/config"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
@@ -36,7 +37,7 @@ func run() (err error) {
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(log)
-	log.Info("starting", "version", version(), "dev_bot", cfg.DevBot)
+	log.Info("starting", "version", version(), "dev_bot", cfg.DevBot, "admins", len(cfg.AdminIDs))
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
@@ -59,7 +60,8 @@ func run() (err error) {
 	log.Info("database ready", "path", cfg.DatabasePath, "schema_version", version)
 
 	fc := faceit.New(cfg.FaceitAPIKey, faceit.WithLogger(log))
-	tg, err := telegram.New(cfg.TelegramToken, store, fc, log)
+	queue := analysis.New(store, fc, log)
+	tg, err := telegram.New(cfg.TelegramToken, store, fc, queue, cfg.AdminIDs, log)
 	if err != nil {
 		return err
 	}

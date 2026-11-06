@@ -51,7 +51,7 @@ func TestOpenMigratesNewDatabase(t *testing.T) {
 	if want := migrationCount(t); v != want {
 		t.Errorf("SchemaVersion() = %d, want %d", v, want)
 	}
-	for _, table := range []string{"users", "faceit_accounts"} {
+	for _, table := range []string{"users", "faceit_accounts", "jobs", "matches", "match_players", "reference_samples"} {
 		var n int
 		if err := s.db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s table: %v", table, err)

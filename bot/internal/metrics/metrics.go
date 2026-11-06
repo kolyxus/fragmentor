@@ -17,6 +17,12 @@ import (
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 )
 
+// Version is the version of the formulas of docs/METRICS.md that Compute
+// follows. Stored metrics carry it, so that the metrics of different
+// formulas are never mixed: bump it whenever a formula or a rule of
+// counting changes, or a new version of the demo parser changes the counts.
+const Version = 1
+
 // TradeWindow is how long after a death its killer may be killed for a
 // trade, the limit included.
 const TradeWindow = 5 * time.Second

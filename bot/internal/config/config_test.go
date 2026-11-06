@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -145,6 +146,32 @@ func TestParse(t *testing.T) {
 			env:     with(map[string]string{"LOG_LEVEL": "verbose"}),
 			wantErr: `invalid LOG_LEVEL "verbose": use debug, info, warn or error`,
 		},
+		{
+			name: "admins",
+			env:  with(map[string]string{"ADMIN_TELEGRAM_IDS": " 1001, 2002 ,,3003"}),
+			want: Config{TelegramToken: "tok", FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo,
+				AdminIDs: []int64{1001, 2002, 3003}},
+		},
+		{
+			name: "no admins",
+			env:  with(map[string]string{"ADMIN_TELEGRAM_IDS": "  "}),
+			want: Config{TelegramToken: "tok", FaceitAPIKey: "fkey", DatabasePath: DefaultDatabasePath, LogLevel: slog.LevelInfo},
+		},
+		{
+			name:    "bad admin ID",
+			env:     with(map[string]string{"ADMIN_TELEGRAM_IDS": "1001, kolyx"}),
+			wantErr: "invalid ADMIN_TELEGRAM_IDS: use Telegram user IDs separated by commas",
+		},
+		{
+			name:    "negative admin ID",
+			env:     with(map[string]string{"ADMIN_TELEGRAM_IDS": "-1001"}),
+			wantErr: "invalid ADMIN_TELEGRAM_IDS: use Telegram user IDs separated by commas",
+		},
+		{
+			name:    "semicolons",
+			env:     with(map[string]string{"ADMIN_TELEGRAM_IDS": "1001;2002"}),
+			wantErr: "invalid ADMIN_TELEGRAM_IDS: use Telegram user IDs separated by commas",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,7 +185,7 @@ func TestParse(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Parse() error: %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Parse() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -179,7 +206,7 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("load() error: %v", err)
 		}
 		want := Config{TelegramToken: "file-token", FaceitAPIKey: "file-key", DatabasePath: "file.db", LogLevel: slog.LevelError}
-		if cfg != want {
+		if !reflect.DeepEqual(cfg, want) {
 			t.Errorf("load() = %+v, want %+v", cfg, want)
 		}
 	})

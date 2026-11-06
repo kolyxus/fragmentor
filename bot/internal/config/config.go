@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -24,6 +25,9 @@ type Config struct {
 	FaceitAPIKey string
 	DatabasePath string
 	LogLevel     slog.Level
+	// AdminIDs are the Telegram user IDs of the admins, from
+	// ADMIN_TELEGRAM_IDS. Until the beta only they may send demos.
+	AdminIDs []int64
 }
 
 // Load reads the .env file at dotenvPath, if there is one, and builds the
@@ -85,8 +89,32 @@ func Parse(lookup func(string) (string, bool)) (Config, error) {
 			errs = append(errs, fmt.Errorf("invalid LOG_LEVEL %q: use debug, info, warn or error", level))
 		}
 	}
+	if ids, err := parseIDs(get("ADMIN_TELEGRAM_IDS")); err != nil {
+		errs = append(errs, err)
+	} else {
+		cfg.AdminIDs = ids
+	}
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// parseIDs reads Telegram user IDs separated by commas: "1, 2". An empty
+// list is no IDs. The error does not repeat the value: these are personal
+// data.
+func parseIDs(s string) ([]int64, error) {
+	var ids []int64
+	for part := range strings.SplitSeq(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, errors.New("invalid ADMIN_TELEGRAM_IDS: use Telegram user IDs separated by commas")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

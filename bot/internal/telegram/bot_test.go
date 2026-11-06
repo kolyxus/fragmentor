@@ -29,7 +29,7 @@ var testNow = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 func newTestBot(t *testing.T, users Users) (*Bot, *fakeAPI) {
 	t.Helper()
 	api := newFakeAPI(t)
-	b, err := New(testToken, users, newStubFaceit(), slog.New(slog.DiscardHandler), bot.WithServerURL(api.URL))
+	b, err := New(testToken, users, newStubFaceit(), newStubJobs(), nil, slog.New(slog.DiscardHandler), bot.WithServerURL(api.URL))
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestErrorsDoNotLeakToken(t *testing.T) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	b, err := New(testToken, &stubUsers{}, newStubFaceit(), slog.New(slog.DiscardHandler), bot.WithServerURL(srv.URL))
+	b, err := New(testToken, &stubUsers{}, newStubFaceit(), newStubJobs(), nil, slog.New(slog.DiscardHandler), bot.WithServerURL(srv.URL))
 	if err != nil {
 		t.Fatal(err)
 	}

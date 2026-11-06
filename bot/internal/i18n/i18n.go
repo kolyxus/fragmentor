@@ -63,6 +63,42 @@ type Messages struct {
 	TimezoneAsk    string // above the buttons with the time in each zone
 	TimezoneSaved  string // the zone is saved, but the match list is not shown
 
+	// Demo links: the analysis of a match. Until the beta only for the
+	// admins.
+	HelpDemo         string // added to /help for the admins
+	DemoClosed       string // a demo link from anyone else
+	DemoHowToButton  string // the button under the help and the texts about links
+	DemoHowTo        string // how to get the link, behind the button
+	DemoBadLink      string // not a link to a FACEIT demo
+	DemoUnsigned     string // a link to a FACEIT demo without the signature
+	DemoExpired      string // the link had run out when it came
+	DemoNoAccount    string // no FACEIT account linked
+	DemoNotFound     string // FACEIT has no such match
+	DemoNotFinished  string // the match is not over
+	DemoMultiMap     string // a match of more than one map
+	DemoNotYours     string // %s: the nickname linked, who did not play the match
+	DemoDuplicate    string // the demo is in the queue already
+	DemoTooMany      string // %d: how many demos a user may have in the queue
+	DemoQueueTooLong string // %d place the demo would take, %d minutes to wait, %d minutes until a fresh link would last
+	DemoAlready      string // %s map, %d:%d score of the user's team first: the match is parsed already
+	DemoQueued       string // %d place in the queue, %s when the parse starts: DemoSoon or DemoInMinutes
+	DemoSoon         string // the parse starts in under a minute
+	DemoInMinutes    string // %d minutes until the parse starts
+	DemoRunning      string // the parse is under way
+	DemoDone         string // %s map, %d:%d score of the user's team first: the match is parsed
+
+	// Why a parse failed.
+	DemoFailExpired   string // the link ran out while the demo waited in the queue
+	DemoFailRejected  string // the storage refused the link
+	DemoFailGone      string // the storage no longer has the demo
+	DemoFailDownload  string // the download failed
+	DemoFailTooLarge  string // the demo is larger than the limit
+	DemoFailBroken    string // the demo is broken or not of the match
+	DemoFailFaceit    string // FACEIT did not answer
+	DemoFailNotLinked string // the FACEIT account was unlinked meanwhile
+	DemoFailNotYours  string // the account linked now did not play the match
+	DemoFailed        string // anything else; the user should try later
+
 	// Bot profile, registered through the Bot API at startup.
 	CommandStart     string // /start in the command menu
 	CommandLink      string // /link in the command menu

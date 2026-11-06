@@ -78,15 +78,24 @@ func (b *Bot) start(ctx context.Context, msg *models.Message) error {
 	return b.reply(ctx, msg, texts.StartJoined)
 }
 
+// help handles /help. The admins, who may send demos before the beta, also
+// get how to send one.
 func (b *Bot) help(ctx context.Context, msg *models.Message) error {
-	return b.reply(ctx, msg, messagesFor(msg.From).Help)
+	texts := messagesFor(msg.From)
+	if b.admins[msg.From.ID] {
+		return b.send(ctx, msg.Chat.ID, texts.Help+"\n\n"+texts.HelpDemo, howToButton(texts))
+	}
+	return b.reply(ctx, msg, texts.Help)
 }
 
-// text handles a message that is not a known command: the nickname the bot
-// asked for after /link, a FACEIT profile link sent on its own, or anything
-// else, which gets a hint.
+// text handles a message that is not a known command: a demo link, the
+// nickname the bot asked for after /link, a FACEIT profile link sent on its
+// own, or anything else, which gets a hint.
 func (b *Bot) text(ctx context.Context, msg *models.Message) error {
 	text := strings.TrimSpace(msg.Text)
+	if link, ok := demoLinkIn(text); ok && !strings.HasPrefix(text, "/") {
+		return b.demoLink(ctx, msg, link)
+	}
 	if text != "" && !strings.HasPrefix(text, "/") {
 		if b.pending.take(msg.From.ID, b.now()) {
 			return b.offerLink(ctx, msg, text)
@@ -111,6 +120,12 @@ func (b *Bot) reply(ctx context.Context, msg *models.Message, text string) error
 // send sends plain text without link previews, with buttons if markup is
 // not nil.
 func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) error {
+	_, err := b.sendMessage(ctx, chatID, text, markup)
+	return err
+}
+
+// sendMessage is send that returns the message sent.
+func (b *Bot) sendMessage(ctx context.Context, chatID int64, text string, markup models.ReplyMarkup) (*models.Message, error) {
 	params := &bot.SendMessageParams{
 		ChatID:             chatID,
 		Text:               text,
@@ -119,10 +134,11 @@ func (b *Bot) send(ctx context.Context, chatID int64, text string, markup models
 	if markup != nil {
 		params.ReplyMarkup = markup
 	}
-	if _, err := b.api.SendMessage(ctx, params); err != nil {
-		return fmt.Errorf("send message: %w", err)
+	msg, err := b.api.SendMessage(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("send message: %w", err)
 	}
-	return nil
+	return msg, nil
 }
 
 // sendPhoto sends the picture at link, which Telegram downloads itself, with

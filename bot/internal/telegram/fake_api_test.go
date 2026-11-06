@@ -36,6 +36,8 @@ type fakeAPI struct {
 	// photoError, if set, is the description sendPhoto fails with, as
 	// Telegram does when it cannot take the picture by the link.
 	photoError string
+	// editError, if set, is the description editMessageText fails with.
+	editError string
 }
 
 // apiError is a Bot API error answer.
@@ -131,6 +133,9 @@ func (f *fakeAPI) result(method string, params map[string]string) (any, bool) {
 			"caption":    params["caption"],
 		}, true
 	case "editMessageText", "editMessageCaption":
+		if f.editError != "" {
+			return apiError{code: 400, description: f.editError}, true
+		}
 		chatID, _ := strconv.ParseInt(params["chat_id"], 10, 64)
 		messageID, _ := strconv.Atoi(params["message_id"])
 		return map[string]any{
@@ -227,4 +232,10 @@ func (f *fakeAPI) failPhotos(description string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.photoError = description
+}
+
+func (f *fakeAPI) failEdits(description string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.editError = description
 }

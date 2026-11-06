@@ -13,6 +13,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 
+	"github.com/kolyxus/fragmentor/bot/internal/analysis"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
@@ -51,19 +52,43 @@ type Faceit interface {
 	RecentMatches(ctx context.Context, playerID string, n int) ([]faceit.MatchSummary, error)
 }
 
+// Jobs is the queue of demo analyses the handlers need, an *analysis.Queue.
+type Jobs interface {
+	Submit(ctx context.Context, r analysis.Request) (analysis.Outcome, error)
+	View(ctx context.Context, id int64) (analysis.View, error)
+	SetMessage(ctx context.Context, id int64, messageID int) error
+	Run(ctx context.Context, n analysis.Notifier) error
+}
+
 // Bot handles updates from Telegram.
 type Bot struct {
 	api     *bot.Bot
 	users   Users
 	faceit  Faceit
+	jobs    Jobs
+	admins  map[int64]bool
 	pending *pendingLinks
+	status  *statusUpdates
 	log     *slog.Logger
 	now     func() time.Time
 }
 
-// New prepares the bot without calling Telegram. Extra options are for tests.
-func New(token string, users Users, fc Faceit, log *slog.Logger, opts ...bot.Option) (*Bot, error) {
-	b := &Bot{users: users, faceit: fc, pending: newPendingLinks(), log: log, now: time.Now}
+// New prepares the bot without calling Telegram. Until the beta only the
+// admins may send demos. Extra options are for tests.
+func New(token string, users Users, fc Faceit, jobs Jobs, admins []int64, log *slog.Logger, opts ...bot.Option) (*Bot, error) {
+	b := &Bot{
+		users:   users,
+		faceit:  fc,
+		jobs:    jobs,
+		admins:  make(map[int64]bool, len(admins)),
+		pending: newPendingLinks(),
+		status:  newStatusUpdates(),
+		log:     log,
+		now:     time.Now,
+	}
+	for _, id := range admins {
+		b.admins[id] = true
+	}
 	options := []bot.Option{
 		bot.WithSkipGetMe(),
 		bot.WithHTTPClient(pollTimeout, &http.Client{Timeout: httpTimeout}),
@@ -88,12 +113,15 @@ func New(token string, users Users, fc Faceit, log *slog.Logger, opts ...bot.Opt
 	api.RegisterHandler(bot.HandlerTypeMessageText, "help", bot.MatchTypeCommandStartOnly, b.handle("help", b.help))
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, linkButtonPrefix, bot.MatchTypePrefix, b.handleButton("link", b.linkButton))
 	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, tzButtonPrefix, bot.MatchTypePrefix, b.handleButton("timezone", b.timezoneButton))
+	api.RegisterHandler(bot.HandlerTypeCallbackQueryData, demoButtonPrefix, bot.MatchTypePrefix, b.handleButton("demo", b.demoButton))
 	b.api = api
 	return b, nil
 }
 
 // Run checks the token, registers the bot profile and handles updates until
-// ctx is done. It returns once the updates in progress are handled.
+// ctx is done, with the queue of demo analyses running alongside. It returns
+// once the updates in progress are handled, the queue has put back the jobs
+// in progress, and the status messages left are drawn.
 func (b *Bot) Run(ctx context.Context) error {
 	meCtx, cancel := context.WithTimeout(ctx, getMeTimeout)
 	me, err := b.api.GetMe(meCtx)
@@ -118,9 +146,28 @@ func (b *Bot) Run(ctx context.Context) error {
 		b.log.Info("bot profile up to date")
 	}
 
+	// The status messages outlive the polling: the queue changes jobs until
+	// it stops.
+	statusCtx, stopStatus := context.WithCancel(context.WithoutCancel(ctx))
+	statusDone := make(chan struct{})
+	go func() {
+		defer close(statusDone)
+		b.runStatus(statusCtx)
+	}()
+	queueDone := make(chan struct{})
+	go func() {
+		defer close(queueDone)
+		if err := b.jobs.Run(ctx, b.status); err != nil {
+			b.log.Error("analysis queue stopped", "err", err)
+		}
+	}()
+
 	b.log.Info("polling for updates")
 	b.api.Start(ctx)
 	b.log.Info("polling stopped")
+	<-queueDone
+	stopStatus()
+	<-statusDone
 	return nil
 }
 
