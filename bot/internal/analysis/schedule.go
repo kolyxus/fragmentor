@@ -8,8 +8,9 @@ import (
 
 const (
 	// defaultDuration is how long a job is taken to last before any has
-	// run: a download with the parse took 4–8 s on the dev machine and
-	// should take 10–30 s on the server, so this errs on the long side.
+	// run. The first live run, a demo of 180 MiB to the dev machine, took
+	// 71 s, the download being the bottleneck; the parse alone takes 4–8 s.
+	// The estimate follows the jobs that run after.
 	defaultDuration = 60 * time.Second
 	// minLeft is how long a running job is taken to need yet when it runs
 	// longer than the estimate.
