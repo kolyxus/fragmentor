@@ -103,7 +103,8 @@ func main() {
 	}
 }
 
-// demoFiles expands the arguments: a folder stands for its *.dem.zst files.
+// demoFiles expands the arguments: a folder stands for its *.zst files, the
+// demos FACEIT names *.dem.zst among them.
 func demoFiles(args []string) ([]string, error) {
 	var files []string
 	for _, arg := range args {
@@ -115,7 +116,7 @@ func demoFiles(args []string) ([]string, error) {
 			files = append(files, arg)
 			continue
 		}
-		matches, err := filepath.Glob(filepath.Join(arg, "*.dem.zst"))
+		matches, err := filepath.Glob(filepath.Join(arg, "*.zst"))
 		if err != nil {
 			return nil, err
 		}
@@ -270,10 +271,10 @@ func (r *runner) one(path string, ownPeak bool) bool {
 // each round, which make the JSON long.
 func withoutEvents(m *demo.Match) *demo.Match {
 	out := *m
-	out.Kills, out.Hits, out.Shots, out.Sightings, out.Flashes = nil, nil, nil, nil, nil
+	out.Kills, out.Hits, out.Shots, out.Sightings, out.Flashes, out.Grenades = nil, nil, nil, nil, nil, nil
 	out.Rounds = slices.Clone(m.Rounds)
 	for i := range out.Rounds {
-		out.Rounds[i].Alive = nil
+		out.Rounds[i].Alive, out.Rounds[i].Equipment = nil, nil
 	}
 	return &out
 }

@@ -543,3 +543,86 @@ func TestBuilderKillGrenades(t *testing.T) {
 		t.Errorf("grenades of the second victim = %q, want none", got)
 	}
 }
+
+func at(p *playerRef, x float64) positionEvent { return positionEvent{Body: *p, X: x, Y: 2 * x, Z: 10} }
+
+func TestBuilderKillContext(t *testing.T) {
+	b := newBuilder()
+	ct1, ct2, t1, t2 := human(1, CT), human(2, CT), human(4, T), human(5, T)
+	b.freezeTimeEnd(100, sides(CT))
+	// Two kills in one tick: the game still has both victims alive in the
+	// second, the builder knows better.
+	everyone := []positionEvent{at(ct1, 1), at(ct2, 2), at(t1, 4), at(t2, 5)}
+	b.kill(killEvent{Tick: 200, Killer: t1, Victim: ct1, Weapon: "AK-47", Class: ClassRifle,
+		VictimPlace: "BombsiteB", KillerPlace: "Alley", VictimWeapon: "USP-S", VictimClass: ClassPistol,
+		ThroughSmoke: true, Wallbang: true, NoScope: true, KillerBlind: true, Positions: everyone})
+	b.kill(killEvent{Tick: 200, Killer: ct2, Victim: t1, Positions: everyone})
+	// A body that left the server is not dead, and may come back.
+	b.kill(killEvent{Tick: 210, Killer: t2, Victim: t2, Disconnect: true, Class: ClassWorld, Positions: []positionEvent{at(ct2, 2), at(t2, 5)}})
+	b.kill(killEvent{Tick: 220, Killer: ct2, Victim: t2, Positions: []positionEvent{at(ct2, 2), at(t2, 5)}})
+	b.roundEnd(roundEndEvent{Tick: 300, Winner: CT, Players: sides(CT)})
+	m := b.build(24, game(b))
+
+	k := m.Kills[0]
+	if k.VictimPlace != "BombsiteB" || k.KillerPlace != "Alley" || k.VictimWeapon != "USP-S" || k.VictimClass != ClassPistol ||
+		!k.ThroughSmoke || !k.Wallbang || !k.NoScope || !k.KillerBlind {
+		t.Errorf("kill 1 = %+v, want its context", k)
+	}
+	want := []Position{{Body: Ref{ID: 1, Side: CT}, X: 1, Y: 2, Z: 10}, {Body: Ref{ID: 2, Side: CT}, X: 2, Y: 4, Z: 10},
+		{Body: Ref{ID: 4, Side: T}, X: 4, Y: 8, Z: 10}, {Body: Ref{ID: 5, Side: T}, X: 5, Y: 10, Z: 10}}
+	if !slices.Equal(k.Positions, want) {
+		t.Errorf("positions of kill 1 = %+v, want everyone", k.Positions)
+	}
+	if got := m.Kills[1].Positions; !slices.Equal(got, want[1:]) {
+		t.Errorf("positions of kill 2 = %+v, want all but the victim of the same tick", got)
+	}
+	if got := m.Kills[3].Positions; len(got) != 2 {
+		t.Errorf("positions of kill 4 = %+v, want the player who came back too", got)
+	}
+}
+
+func TestBuilderGrenadesBombAndEquipment(t *testing.T) {
+	b := newBuilder()
+	b.grenade(grenadeEvent{Tick: 5, Thrower: human(1, CT), Weapon: Flashbang})
+	b.reset() // the warmup is forgotten
+	b.freezeTimeEnd(100, sides(CT))
+	b.equipment([]loadoutEvent{{Body: *human(1, CT), Value: 850}, {Body: *human(4, T), Value: 200}})
+	if id := b.grenade(grenadeEvent{Tick: 110, Thrower: human(4, T), Weapon: Flashbang}); id != 1 {
+		t.Errorf("the first grenade got ID %d", id)
+	}
+	if id := b.grenade(grenadeEvent{Tick: 111, Weapon: SmokeGrenade}); id != 0 {
+		t.Errorf("a grenade of nobody got ID %d, want 0", id)
+	}
+	b.flash(flashEvent{Tick: 120, Thrower: human(4, T), Victim: human(1, CT), Duration: 2, Grenade: 1})
+	b.bombPlanted(150, "B")
+	b.roundEnd(roundEndEvent{Tick: 200, Winner: CT, Players: sides(CT)})
+	b.grenade(grenadeEvent{Tick: 210, Thrower: human(5, T), Weapon: HEGrenade})
+	b.bombPlanted(220, "A") // after the end: not the round's
+	b.equipment([]loadoutEvent{{Body: *human(1, CT), Value: 5000}})
+	// Round 2: no equipment told, no plant.
+	b.freezeTimeEnd(300, sides(T))
+	b.roundEnd(roundEndEvent{Tick: 400, Winner: T, Players: sides(T)})
+	m := b.build(24, game(b))
+
+	wantGrenades := []Grenade{
+		{ID: 1, Tick: 110, Round: 1, Thrower: Ref{ID: 4, Side: T}, Weapon: Flashbang},
+		{ID: 2, Tick: 210, Round: 1, AfterRoundEnd: true, Thrower: Ref{ID: 5, Side: T}, Weapon: HEGrenade},
+	}
+	if !slices.Equal(m.Grenades, wantGrenades) {
+		t.Errorf("grenades =\n%+v\nwant\n%+v", m.Grenades, wantGrenades)
+	}
+	if len(m.Flashes) != 1 || m.Flashes[0].Grenade != 1 {
+		t.Errorf("flashes = %+v, want one of grenade 1", m.Flashes)
+	}
+	r1, r2 := m.Rounds[0], m.Rounds[1]
+	wantEquipment := []Loadout{{Body: Ref{ID: 1, Side: CT}, Value: 850}, {Body: Ref{ID: 4, Side: T}, Value: 200}}
+	if r1.BombPlantTick != 150 || r1.BombSite != "B" || !slices.Equal(r1.Equipment, wantEquipment) {
+		t.Errorf("round 1: plant %d on %q, equipment %+v", r1.BombPlantTick, r1.BombSite, r1.Equipment)
+	}
+	if r2.BombPlantTick != 0 || r2.BombSite != "" || r2.Equipment != nil {
+		t.Errorf("round 2: plant %d on %q, equipment %+v; want none", r2.BombPlantTick, r2.BombSite, r2.Equipment)
+	}
+	if m.MaxRounds != 24 {
+		t.Errorf("max rounds = %d", m.MaxRounds)
+	}
+}

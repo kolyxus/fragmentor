@@ -2,9 +2,9 @@ package demo
 
 // The events of a match, for the metrics of internal/metrics. Like the
 // summary, they cover the match itself: what happens before its last start,
-// during a warmup and after its end is left out. Kills, hits, shots and
-// flashes keep the order of the demo; sightings come in the order they
-// began.
+// during a warmup and after its end is left out. Kills, hits, shots,
+// grenades and flashes keep the order of the demo; sightings come in the
+// order they began.
 
 // Ref is a player or a bot as an event saw them.
 type Ref struct {
@@ -52,6 +52,51 @@ type Kill struct {
 	// Grenades is what the victim's body carried as it died, a name for
 	// each grenade: two flashbangs are two, see Flashbang and the like.
 	Grenades []string `json:"grenades,omitempty"`
+
+	// The context of the kill, as the game had it at the moment.
+	//
+	// VictimPlace and KillerPlace are where the two stood: the place names
+	// of the map's navigation, like "BombsiteB" or "TopofMid", "" if the
+	// demo does not tell. The world stands nowhere.
+	VictimPlace string `json:"victim_place,omitempty"`
+	KillerPlace string `json:"killer_place,omitempty"`
+	// VictimWeapon is the weapon in the hands of the victim's body, and
+	// VictimClass its class.
+	VictimWeapon string      `json:"victim_weapon,omitempty"`
+	VictimClass  WeaponClass `json:"victim_class,omitempty"`
+	// How the kill was made: through a smoke, through a wall or another
+	// object, with a sniper rifle not scoped in, by a killer blinded by a
+	// flash.
+	ThroughSmoke bool `json:"through_smoke,omitempty"`
+	Wallbang     bool `json:"wallbang,omitempty"`
+	NoScope      bool `json:"no_scope,omitempty"`
+	KillerBlind  bool `json:"killer_blind,omitempty"`
+	// Positions is where every body alive at the moment stood, the victim
+	// and the killer among them. A body that died earlier in the round is
+	// not alive, even if the game had not removed it yet.
+	Positions []Position `json:"positions,omitempty"`
+}
+
+// Position is where a body stood, in units of the game, whole: a unit is an
+// inch, 2.54 cm. Z is at the feet.
+type Position struct {
+	Body Ref     `json:"body"` // as in Kill.Victim
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	Z    float64 `json:"z"`
+}
+
+// Grenade is a grenade thrown by a player or a bot.
+type Grenade struct {
+	// ID tells the grenades of the match apart, from 1: Flash.Grenade
+	// refers to it.
+	ID            int  `json:"id"`
+	Tick          int  `json:"tick"`
+	Round         int  `json:"round"` // as in Kill
+	AfterRoundEnd bool `json:"after_round_end,omitempty"`
+	// Thrower is whose body threw it, as in Shot.Shooter.
+	Thrower Ref    `json:"thrower"`
+	Weapon  string `json:"weapon"` // Flashbang, HEGrenade and the like
 }
 
 // Shot is a shot of a gun: a pistol, an SMG, a shotgun, a rifle, a sniper
@@ -99,6 +144,9 @@ type Flash struct {
 	// Duration is how long the victim was blind, in seconds: the full
 	// blindness, without the fading.
 	Duration float64 `json:"duration"`
+	// Grenade is the ID of the flashbang in Match.Grenades, 0 if the demo
+	// does not tell which one it was.
+	Grenade int `json:"grenade,omitempty"`
 }
 
 // Hit is a hit on a player or a bot: a bullet, a grenade, fire, a fall.

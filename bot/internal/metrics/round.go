@@ -56,11 +56,14 @@ func (c *counter) round(r demo.Round, e events) {
 			s.KASTRounds++
 		}
 	}
+	byID := make(map[uint64]int, len(f.kills))
 	for p, n := range f.kills {
+		byID[p.id] = n
 		if n >= 2 {
 			side(p).MultiKills[min(n, 5)-2]++
 		}
 	}
+	c.roundKills[r.Number] = byID
 }
 
 // asFACEIT counts the kills, deaths, assists, headshots and damage as
@@ -145,52 +148,63 @@ func (c *counter) opening(kills []demo.Kill, side func(*player) *Stats) {
 // within TradeWindow. Kills in the same tick trade each other whatever their
 // order. Only deaths by enemies are traded or not.
 func (c *counter) trades(kills []demo.Kill, side func(*player) *Stats, f roundFacts) {
-	within := func(death, revenge demo.Kill) bool {
-		return death.Tick <= revenge.Tick && revenge.Tick <= death.Tick+c.window
-	}
 	for j, kj := range kills {
 		if !duel(kj) || computerBot(kj.Victim) {
 			continue
 		}
-		killer := coach(*kj.Killer)
-		p := c.coached(killer)
-		if p == nil {
-			continue
-		}
-		victim := coach(kj.Victim)
-		for i, ki := range kills {
-			if i != j && duel(ki) && coach(*ki.Killer) == victim && coach(ki.Victim) != killer &&
-				ki.Victim.Side == kj.Killer.Side && within(ki, kj) {
-				side(p).TradeKills++
-				break
-			}
+		if p := c.coached(coach(*kj.Killer)); p != nil && c.tradeKill(kills, j) {
+			side(p).TradeKills++
 		}
 	}
 	for i, ki := range kills {
 		if !duel(ki) {
 			continue
 		}
-		victim := coach(ki.Victim)
-		p := c.coached(victim)
+		p := c.coached(coach(ki.Victim))
 		if p == nil {
 			continue
 		}
-		killer := coach(*ki.Killer)
-		traded := false
-		for j, kj := range kills {
-			if j != i && duel(kj) && coach(kj.Victim) == killer && coach(*kj.Killer) != victim &&
-				kj.Killer.Side == ki.Victim.Side && within(ki, kj) {
-				traded = true
-				break
-			}
-		}
-		if traded {
+		if c.tradedDeath(kills, i) {
 			side(p).TradedDeaths++
 			f.traded[p] = true
 		} else {
 			side(p).UntradedDeaths++
 		}
 	}
+}
+
+// tradeKill reports whether kills[j], a kill of an enemy, killed an enemy
+// who had killed a teammate of the killer no more than TradeWindow before.
+func (c *counter) tradeKill(kills []demo.Kill, j int) bool {
+	kj := kills[j]
+	killer, victim := coach(*kj.Killer), coach(kj.Victim)
+	for i, ki := range kills {
+		if i != j && duel(ki) && coach(*ki.Killer) == victim && coach(ki.Victim) != killer &&
+			ki.Victim.Side == kj.Killer.Side && c.within(ki, kj) {
+			return true
+		}
+	}
+	return false
+}
+
+// tradedDeath reports whether kills[i], a kill of an enemy, was traded: a
+// teammate of the victim killed the killer within TradeWindow.
+func (c *counter) tradedDeath(kills []demo.Kill, i int) bool {
+	ki := kills[i]
+	victim, killer := coach(ki.Victim), coach(*ki.Killer)
+	for j, kj := range kills {
+		if j != i && duel(kj) && coach(kj.Victim) == killer && coach(*kj.Killer) != victim &&
+			kj.Killer.Side == ki.Victim.Side && c.within(ki, kj) {
+			return true
+		}
+	}
+	return false
+}
+
+// within reports whether revenge came no more than TradeWindow after death,
+// the limit included; kills of one tick are within each other's window.
+func (c *counter) within(death, revenge demo.Kill) bool {
+	return death.Tick <= revenge.Tick && revenge.Tick <= death.Tick+c.window
 }
 
 // clutches counts the clutches of the round. A side is in a clutch the first
@@ -231,6 +245,7 @@ func (c *counter) clutches(r demo.Round, kills []demo.Kill, side func(*player) *
 				if r.WinnerSide == s {
 					cl.Wins++
 				}
+				c.clutchLog = append(c.clutchLog, ClutchPlay{Round: r.Number, Player: p.id, Enemies: enemies, Won: r.WinnerSide == s})
 			}
 		}
 	}

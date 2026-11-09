@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/events"
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/msg"
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/option"
+	st "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/sendtables"
 )
 
 // msgQueueSize is the parser's queue of net messages between the goroutine
@@ -27,6 +29,14 @@ const msgQueueSize = 1000
 // defaultMaxRounds is mp_maxrounds, the regulation length of a match, when
 // the demo does not tell it: 24, as on FACEIT.
 const defaultMaxRounds = 24
+
+// defaultRoundTime and defaultBombTime are how long a round lasts once its
+// freeze time ends and how long a planted bomb ticks, in seconds, when the
+// demo does not tell: 1:55 and 40 s, as on FACEIT.
+const (
+	defaultRoundTime = 115
+	defaultBombTime  = 40
+)
 
 // ParseFile parses the .dem.zst file at path, see Parse.
 func ParseFile(ctx context.Context, path string, opts Options) (*Match, error) {
@@ -136,6 +146,18 @@ type collector struct {
 		userTick
 		index int // in the builder's log
 	}
+
+	// grenades maps the projectiles thrown to the IDs of their grenades in
+	// the log, to tell which flashbang blinded whom.
+	grenades map[common.UniqueID]int
+	// equip holds the bodies alive when the freeze time of the round in
+	// progress ended, at tick equipTick, until what they carried is read: the
+	// game sets the value of the round after the event, see onFrameDone.
+	equip     []*common.Player
+	equipTick int
+	// bombTime is the timer of the last bomb planted, in seconds; 0 until
+	// one is.
+	bombTime float64
 }
 
 type tickHealth struct{ tick, health int }
@@ -143,7 +165,13 @@ type tickHealth struct{ tick, health int }
 type userTick struct{ user, tick int }
 
 func newCollector(p *demoinfocs.Parser) *collector {
-	c := &collector{p: p, gs: p.GameState(), b: newBuilder(), lastHealth: make(map[*common.Player]tickHealth)}
+	c := &collector{
+		p:          p,
+		gs:         p.GameState(),
+		b:          newBuilder(),
+		lastHealth: make(map[*common.Player]tickHealth),
+		grenades:   make(map[common.UniqueID]int),
+	}
 	c.left.tick, c.selfKill.tick = -1, -1
 	p.RegisterNetMessageHandler(func(m *msg.CDemoFileHeader) { c.mapName = m.GetMapName() })
 	// FACEIT demos start with a round before the warmup, then the warmup,
@@ -168,7 +196,95 @@ func newCollector(p *demoinfocs.Parser) *collector {
 	p.RegisterEventHandler(c.onWeaponFire)
 	p.RegisterEventHandler(c.onSpottersChanged)
 	p.RegisterEventHandler(c.onFlashed)
+	p.RegisterEventHandler(c.onGrenadeThrow)
+	p.RegisterEventHandler(c.onFrameDone)
+	p.RegisterEventHandler(func(e events.BombPlanted) {
+		if c.live() {
+			c.b.bombPlanted(c.gs.IngameTick(), bombSite(e.Site))
+		}
+	})
+	// The timer of a planted bomb is a property of the bomb itself; the
+	// server's mp_c4timer is not in FACEIT demos.
+	p.RegisterEventHandler(func(events.DataTablesParsed) {
+		if sc := p.ServerClasses().FindByName("CPlantedC4"); sc != nil {
+			sc.OnEntityCreated(func(e *st.Entity) {
+				if v, ok := e.PropertyValue("m_flTimerLength"); ok && v.Any != nil && v.Float() > 0 {
+					c.bombTime = float64(v.Float())
+				}
+			})
+		}
+	})
 	return c
+}
+
+// onGrenadeThrow logs a grenade thrown, by whose body.
+func (c *collector) onGrenadeThrow(e events.GrenadeProjectileThrow) {
+	if !c.live() || e.Projectile == nil || e.Projectile.WeaponInstance == nil {
+		return
+	}
+	id := c.b.grenade(grenadeEvent{
+		Tick:    c.gs.IngameTick(),
+		Thrower: c.bodyOf(e.Projectile.Thrower),
+		Weapon:  weaponName(e.Projectile.WeaponInstance),
+	})
+	if id > 0 {
+		c.grenades[e.Projectile.UniqueID()] = id
+	}
+}
+
+// onFrameDone reads what the bodies alive at the end of the freeze time
+// carried. The game values the equipment of the round as the freeze time
+// ends, but the property changes after the event: in the event it is still
+// the last round's, a tick later it is right.
+func (c *collector) onFrameDone(events.FrameDone) {
+	if c.equip == nil || c.gs.IngameTick() <= c.equipTick {
+		return
+	}
+	loadouts := make([]loadoutEvent, 0, len(c.equip))
+	for _, p := range c.equip {
+		if r := c.bodyOf(p); r != nil {
+			loadouts = append(loadouts, loadoutEvent{Body: *r, Value: p.EquipmentValueFreezeTimeEnd()})
+		}
+	}
+	c.equip = nil
+	if c.live() {
+		c.b.equipment(loadouts)
+	}
+}
+
+// positions returns where every body alive on T or CT stands.
+func (c *collector) positions() []positionEvent {
+	var out []positionEvent
+	for _, p := range c.gs.Participants().Playing() {
+		if !p.IsAlive() {
+			continue
+		}
+		r := c.bodyOf(p)
+		if r == nil || r.Side == "" {
+			continue
+		}
+		v := p.Position()
+		out = append(out, positionEvent{Body: *r, X: math.Round(v.X), Y: math.Round(v.Y), Z: math.Round(v.Z)})
+	}
+	return out
+}
+
+// place returns where p stands, "" for nobody.
+func place(p *common.Player) string {
+	if p == nil {
+		return ""
+	}
+	return p.LastPlaceName()
+}
+
+func bombSite(s events.Bombsite) string {
+	switch s {
+	case events.BombsiteA:
+		return "A"
+	case events.BombsiteB:
+		return "B"
+	}
+	return ""
 }
 
 // onWeaponFire logs a shot of a gun. On CS2 the library makes the event of
@@ -219,12 +335,16 @@ func (c *collector) onFlashed(e events.PlayerFlashed) {
 	if d <= 0 {
 		return
 	}
-	c.b.flash(flashEvent{
+	f := flashEvent{
 		Tick:     c.gs.IngameTick(),
 		Thrower:  c.bodyOf(e.Attacker),
 		Victim:   c.bodyOf(e.Player),
 		Duration: d.Seconds(),
-	})
+	}
+	if e.Projectile != nil {
+		f.Grenade = c.grenades[e.Projectile.UniqueID()]
+	}
+	c.b.flash(f)
 }
 
 // bodyOf returns the ref of the body p. A bot that a player controls gets
@@ -247,6 +367,8 @@ func (c *collector) reset() {
 	c.b.reset()
 	c.unpaired = 0
 	c.left.tick, c.selfKill.tick = -1, -1
+	clear(c.grenades)
+	c.equip = nil
 }
 
 // live reports whether the match is on: started and not in a warmup. What
@@ -279,9 +401,22 @@ func (c *collector) onGameEvent(e events.GenericGameEvent) {
 			Headshot:    k.IsHeadshot,
 			Weapon:      weaponName(k.Weapon),
 			Class:       weaponClass(k.Weapon),
-			// Entities update after the events of a tick: the inventory
-			// is still what the body carried.
-			Grenades: grenades(victim),
+			// Entities update after the events of a tick: the inventory,
+			// the weapon in hand, the place and the positions are still
+			// those of the moment of the death.
+			Grenades:     grenades(victim),
+			VictimPlace:  place(victim),
+			KillerPlace:  place(k.Killer),
+			ThroughSmoke: k.ThroughSmoke,
+			Wallbang:     k.IsWallBang(),
+			NoScope:      k.NoScope,
+			KillerBlind:  k.AttackerBlind,
+			Positions:    c.positions(),
+		}
+		if victim != nil {
+			if w := victim.ActiveWeapon(); w != nil {
+				ev.VictimWeapon, ev.VictimClass = weaponName(w), weaponClass(w)
+			}
 		}
 		self := k.Victim != nil && k.Killer == k.Victim && ev.Class == ClassWorld
 		if self {
@@ -395,12 +530,15 @@ func (c *collector) onFreezeTimeEnd(events.RoundFreezetimeEnd) {
 		return
 	}
 	var alive []playerRef
+	c.equip = c.equip[:0]
 	for _, p := range c.gs.Participants().Playing() {
 		if r := ref(p); r.Side != "" && p.IsAlive() {
 			alive = append(alive, *r)
+			c.equip = append(c.equip, p)
 		}
 	}
-	c.b.freezeTimeEnd(c.gs.IngameTick(), alive)
+	c.equipTick = c.gs.IngameTick()
+	c.b.freezeTimeEnd(c.equipTick, alive)
 }
 
 func (c *collector) onRoundEnd(e events.RoundEnd) {
@@ -442,7 +580,22 @@ func (c *collector) match() (*Match, error) {
 	}
 	m.Map = c.mapName
 	m.TickRate = c.p.TickRate()
+	m.RoundTime = c.roundTime()
+	m.BombTime = cmp.Or(c.bombTime, defaultBombTime)
 	return &m, nil
+}
+
+// roundTime returns how long a round lasts once its freeze time ends, in
+// seconds: the game's own m_iRoundTime, or mp_roundtime_defuse in minutes,
+// or defaultRoundTime.
+func (c *collector) roundTime() float64 {
+	if d, err := c.gs.Rules().RoundTime(); err == nil && d > 0 {
+		return d.Seconds()
+	}
+	if m, err := strconv.ParseFloat(c.gs.Rules().ConVars()["mp_roundtime_defuse"], 64); err == nil && m > 0 {
+		return math.Round(m * 60)
+	}
+	return defaultRoundTime
 }
 
 func ref(p *common.Player) *playerRef {

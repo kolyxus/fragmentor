@@ -9,25 +9,50 @@ import (
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 )
 
-// TestComputeTestdata computes the metrics of the demos in bot/testdata and
-// checks what holds for any match: the totals as FACEIT counts them are
-// the summary's, which go run ./cmd/parsedemo -faceit checks against
-// FACEIT, and the coaching metrics stay within their bounds. The demos are
-// not in git: the test skips without them, and with -short. They are parsed
-// in parallel, as each takes seconds.
-func TestComputeTestdata(t *testing.T) {
+// testDemos returns the demos in bot/testdata and in its folders, like
+// 7-8lvl/ for the matches of other levels: the *.zst files. They are not in
+// git: the test skips without them, and with -short, as each takes seconds.
+func testDemos(t *testing.T) []string {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("parsing real demos takes seconds")
 	}
-	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "*.dem.zst"))
-	if err != nil {
-		t.Fatal(err)
+	var files []string
+	for _, pattern := range []string{"*.zst", filepath.Join("*", "*.zst")} {
+		found, err := filepath.Glob(filepath.Join("..", "..", "testdata", pattern))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, found...)
 	}
 	if len(files) == 0 {
 		t.Skip("no demos in bot/testdata")
 	}
-	for _, file := range files {
-		t.Run(filepath.Base(file)[:10], func(t *testing.T) {
+	return files
+}
+
+// demoName names the subtest of a demo: its folder in testdata, if any, and
+// the start of its name.
+func demoName(file string) string {
+	name := filepath.Base(file)
+	if len(name) > 10 {
+		name = name[:10]
+	}
+	if dir := filepath.Base(filepath.Dir(file)); dir != "testdata" {
+		name = dir + "/" + name
+	}
+	return name
+}
+
+// TestComputeTestdata computes the metrics of the demos in bot/testdata and
+// checks what holds for any match: the totals as FACEIT counts them are
+// the summary's, which go run ./cmd/parsedemo -faceit checks against
+// FACEIT, the coaching metrics stay within their bounds, and the events in
+// their context add up to the metrics. The demos are parsed in parallel, as
+// each takes seconds.
+func TestComputeTestdata(t *testing.T) {
+	for _, file := range testDemos(t) {
+		t.Run(demoName(file), func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
@@ -35,7 +60,9 @@ func TestComputeTestdata(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			checkMatch(t, m, Compute(m))
+			a := Analyze(m)
+			checkMatch(t, m, a.Players)
+			checkAnalysis(t, m, a)
 		})
 	}
 }
@@ -159,5 +186,119 @@ func checkShootingAndGrenades(t *testing.T, i int, s Stats) {
 		(s.DeathsWithGrenades > 0) != (s.UnusedGrenadeValue > 0) {
 		t.Errorf("player %d: grenade damage %d of %d, %d of %d deaths with grenades worth $%d", i,
 			s.GrenadeDamage, s.Damage, s.DeathsWithGrenades, s.Deaths, s.UnusedGrenadeValue)
+	}
+}
+
+// checkAnalysis checks the events of a real match in their context against
+// the metrics they are counted from, and their bounds.
+func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
+	t.Helper()
+	if len(a.Rounds) != len(m.Rounds) {
+		t.Fatalf("%d rounds in the analysis, %d in the match", len(a.Rounds), len(m.Rounds))
+	}
+	for i, r := range a.Rounds {
+		pistol := r.Number == 1 || r.Number == 13
+		for team := range 2 {
+			if pistol != (r.Buy[team] == BuyPistol) || r.Buy[team] == "" || r.Equipment[team] <= 0 {
+				t.Errorf("round %d: team %d bought %q for $%d", i+1, team, r.Buy[team], r.Equipment[team])
+			}
+		}
+	}
+
+	type sums struct{ deaths, untraded, lone, advantage, dry, chances, missed, flashes, empty, team, bad, enemies int }
+	got := make(map[uint64]*sums)
+	for _, p := range a.Players {
+		got[p.SteamID64] = &sums{}
+	}
+	var lone, advantage, dry int
+	for i, d := range a.Deaths {
+		s := got[d.Victim]
+		if s == nil {
+			t.Fatalf("death %d of a stranger: %+v", i, d)
+		}
+		s.deaths++
+		if !d.Traded {
+			s.untraded++
+		}
+		for _, b := range []struct {
+			on  bool
+			sum *int
+			all *int
+		}{{d.Lone, &s.lone, &lone}, {d.Advantage, &s.advantage, &advantage}, {d.Dry, &s.dry, &dry}} {
+			if b.on {
+				*b.sum++
+				*b.all++
+			}
+		}
+		k := m.Kills[d.Kill]
+		r := m.Rounds[d.Round-1]
+		bad := k.Tick != d.Tick || k.Round != d.Round || d.Elapsed < 0 || d.Clock < 0 || d.Clock > m.RoundTime ||
+			d.Planted && (d.Clock > m.BombTime || d.Tick < r.BombPlantTick) || d.TeammateDistance < -1 ||
+			d.Lone && (d.Traded || d.TeammateDistance <= LoneDistance) || d.Dry && (d.Traded || d.DamageBefore > 0) ||
+			d.Excused && d.Buy != BuyEco || d.Opening && i > 0 && a.Deaths[i-1].Round == d.Round
+		// The victim was alive, and has a teammate alive exactly when one
+		// stands near enough to be measured.
+		if !k.AfterRoundEnd && k.Tick >= r.FreezeEndTick {
+			bad = bad || d.AliveOwn < 1 || d.AliveEnemy < 1 || (d.AliveOwn > 1) != (d.TeammateDistance >= 0)
+		}
+		if bad {
+			t.Errorf("death %d = %+v", i, d)
+		}
+	}
+	if lone == 0 || advantage == 0 || dry == 0 || len(a.Chances) == 0 || len(a.Flashbangs) == 0 {
+		t.Errorf("%d lone, %d advantage and %d dry deaths, %d trade chances, %d flashbangs", lone, advantage, dry, len(a.Chances), len(a.Flashbangs))
+	}
+	missed := 0
+	for i, ch := range a.Chances {
+		d := a.Deaths[ch.Death]
+		s := got[ch.Player]
+		if s == nil || ch.Player == d.Victim || ch.Missed == d.Traded || ch.Traded && ch.Missed || d.AfterRoundEnd {
+			t.Errorf("chance %d = %+v of death %+v", i, ch, d)
+			continue
+		}
+		s.chances++
+		if ch.Missed {
+			s.missed++
+			missed++
+		}
+	}
+	if missed == 0 {
+		t.Error("no trade missed in a match")
+	}
+	for i, fb := range a.Flashbangs {
+		s := got[fb.Thrower]
+		if s == nil || fb.Empty != (fb.Enemies == 0) || fb.TeamFlash != (fb.Teammates > 0) {
+			t.Errorf("flashbang %d = %+v", i, fb)
+			continue
+		}
+		s.flashes++
+		s.enemies += fb.Enemies
+		if fb.Empty {
+			s.empty++
+		}
+		if fb.TeamFlash {
+			s.team++
+		}
+		if fb.Empty || fb.TeamFlash {
+			s.bad++
+		}
+	}
+	for i, p := range a.Players {
+		st, s := p.Match, got[p.SteamID64]
+		want := sums{
+			deaths: st.TradedDeaths + st.UntradedDeaths, untraded: st.UntradedDeaths,
+			lone: st.LoneDeaths, advantage: st.AdvantageDeaths, dry: st.DryDeaths,
+			chances: st.TradeChances, missed: st.MissedTrades,
+			flashes: st.FlashesThrown, empty: st.EmptyFlashes, team: st.TeamFlashes, bad: st.BadFlashes,
+			enemies: s.enemies,
+		}
+		if *s != want {
+			t.Errorf("player %d: the events add up to %+v, the metrics %+v", i, *s, want)
+		}
+		// A blinding of an unknown flashbang counts in the metrics only.
+		if s.enemies > st.EnemiesFlashed || st.TradeChances > st.TeammateDeaths {
+			t.Errorf("player %d: flashbangs blinded %d enemies, the metrics %d; %d chances to trade of %d deaths of teammates",
+				i, s.enemies, st.EnemiesFlashed, st.TradeChances, st.TeammateDeaths)
+		}
 	}
 }

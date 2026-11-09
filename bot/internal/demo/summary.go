@@ -49,6 +49,32 @@ type killEvent struct {
 	Weapon      string
 	Class       WeaponClass
 	Grenades    []string // what the victim's body carried
+
+	// The context, see Kill.
+	VictimPlace, KillerPlace string
+	VictimWeapon             string
+	VictimClass              WeaponClass
+	ThroughSmoke, Wallbang   bool
+	NoScope, KillerBlind     bool
+	// Positions is every body the game had alive at the moment; the builder
+	// drops those that died earlier in the round.
+	Positions []positionEvent
+}
+
+type positionEvent struct {
+	Body    playerRef
+	X, Y, Z float64
+}
+
+type grenadeEvent struct {
+	Tick    int
+	Thrower *playerRef // whose body threw it
+	Weapon  string
+}
+
+type loadoutEvent struct {
+	Body  playerRef
+	Value int
 }
 
 type shotEvent struct {
@@ -65,6 +91,7 @@ type flashEvent struct {
 	Thrower  *playerRef // nil if unknown
 	Victim   *playerRef // whose body was blinded
 	Duration float64    // seconds
+	Grenade  int        // the ID of the flashbang, 0 if unknown
 }
 
 // body tells the bodies of the events apart: the ID of a bot is unique
@@ -130,14 +157,21 @@ type builder struct {
 	kills     []Kill
 	hits      []Hit
 	shots     []Shot
+	grenades  []Grenade
 	flashes   []Flash
 	sightings []Sighting
 	cur       int
 	ended     bool
 	// alive is who was alive when the freeze time of the round in progress
-	// ended, at tick freezeEnd; nil until then.
+	// ended, at tick freezeEnd; nil until then. loadouts is what they
+	// carried, which the game tells a tick later.
 	alive     []Ref
 	freezeEnd int
+	loadouts  []Loadout
+	// plantTick and plantSite are when and where the bomb was planted in
+	// the round in progress, 0 and "" until it is.
+	plantTick int
+	plantSite string
 	// seeing holds the sightings in progress, by their index in sightings.
 	// dead is the bodies that died in the round, which neither see nor are
 	// seen any more.
@@ -204,6 +238,15 @@ func (b *builder) kill(k killEvent) {
 	if k.Victim == nil {
 		return // a broken demo: a death of nobody tells nothing
 	}
+	var positions []Position
+	for _, p := range k.Positions {
+		// The game removes the dead after the events of the tick: a body
+		// that died earlier in the round, the same tick among them, is
+		// gone.
+		if !b.dead[bodyOf(&p.Body)] {
+			positions = append(positions, Position{Body: *p.Body.export(), X: p.X, Y: p.Y, Z: p.Z})
+		}
+	}
 	b.kills = append(b.kills, Kill{
 		Tick:          k.Tick,
 		Round:         b.cur,
@@ -217,8 +260,56 @@ func (b *builder) kill(k killEvent) {
 		Weapon:        k.Weapon,
 		Class:         k.Class,
 		Grenades:      k.Grenades,
+		VictimPlace:   k.VictimPlace,
+		KillerPlace:   k.KillerPlace,
+		VictimWeapon:  k.VictimWeapon,
+		VictimClass:   k.VictimClass,
+		ThroughSmoke:  k.ThroughSmoke,
+		Wallbang:      k.Wallbang,
+		NoScope:       k.NoScope,
+		KillerBlind:   k.KillerBlind,
+		Positions:     positions,
 	})
 	b.gone(k.Tick, bodyOf(k.Victim), !k.Disconnect)
+}
+
+// grenade logs a grenade thrown in the current round and returns its ID, 0
+// for a grenade of nobody, which is not logged.
+func (b *builder) grenade(g grenadeEvent) int {
+	b.tick = max(b.tick, g.Tick)
+	if g.Thrower == nil {
+		return 0
+	}
+	id := len(b.grenades) + 1
+	b.grenades = append(b.grenades, Grenade{
+		ID:            id,
+		Tick:          g.Tick,
+		Round:         b.cur,
+		AfterRoundEnd: b.ended,
+		Thrower:       *g.Thrower.export(),
+		Weapon:        g.Weapon,
+	})
+	return id
+}
+
+// bombPlanted notes the bomb planted at tick on site, "A", "B" or "".
+func (b *builder) bombPlanted(tick int, site string) {
+	b.tick = max(b.tick, tick)
+	if !b.ended {
+		b.plantTick, b.plantSite = tick, site
+	}
+}
+
+// equipment notes what the bodies alive at the end of the freeze time of
+// the round in progress carried then.
+func (b *builder) equipment(loadouts []loadoutEvent) {
+	if b.ended || b.alive == nil {
+		return
+	}
+	b.loadouts = make([]Loadout, 0, len(loadouts))
+	for _, l := range loadouts {
+		b.loadouts = append(b.loadouts, Loadout{Body: *l.Body.export(), Value: l.Value})
+	}
 }
 
 // gone ends the sightings of the body who, as the spotter and as the
@@ -278,6 +369,7 @@ func (b *builder) flash(f flashEvent) {
 		Thrower:       f.Thrower.export(),
 		Victim:        *f.Victim.export(),
 		Duration:      f.Duration,
+		Grenade:       f.Grenade,
 	})
 }
 
@@ -367,6 +459,7 @@ func (b *builder) freezeTimeEnd(tick int, alive []playerRef) {
 	for i := range alive {
 		b.alive = append(b.alive, *alive[i].export())
 	}
+	b.loadouts = nil
 }
 
 // roundEnd counts a round. A round without a winner, a draw, gets no number
@@ -375,8 +468,10 @@ func (b *builder) roundEnd(e roundEndEvent) {
 	b.tick = max(b.tick, e.Tick)
 	b.played++
 	b.ended = true
-	alive, freezeEnd := b.alive, b.freezeEnd
-	b.alive, b.freezeEnd = nil, 0
+	alive, freezeEnd, loadouts := b.alive, b.freezeEnd, b.loadouts
+	plantTick, plantSite := b.plantTick, b.plantSite
+	b.alive, b.freezeEnd, b.loadouts = nil, 0, nil
+	b.plantTick, b.plantSite = 0, ""
 	if e.Winner != T && e.Winner != CT {
 		b.warnf("a round ended without a winner at tick %d", e.Tick)
 		return
@@ -405,6 +500,9 @@ func (b *builder) roundEnd(e roundEndEvent) {
 			EndTick:       e.Tick,
 			FreezeEndTick: freezeEnd,
 			Alive:         alive,
+			Equipment:     loadouts,
+			BombPlantTick: plantTick,
+			BombSite:      plantSite,
 		},
 		ctTeam: ct,
 	})
@@ -462,7 +560,7 @@ func (b *builder) teamAt(i int, side Side) int {
 // match, mp_maxrounds: its first half is the first half of the match, the
 // rounds after it are overtime. game is the game's own score to check ours.
 func (b *builder) build(maxRounds int, game gameScore) Match {
-	m := Match{Rounds: make([]Round, 0, len(b.rounds))}
+	m := Match{MaxRounds: maxRounds, Rounds: make([]Round, 0, len(b.rounds))}
 	m.Teams[0] = Team{Name: b.names[0], StartSide: CT, Score: b.score[0]}
 	m.Teams[1] = Team{Name: b.names[1], StartSide: T, Score: b.score[1]}
 	for _, r := range b.rounds {
@@ -494,6 +592,7 @@ func (b *builder) build(maxRounds int, game gameScore) Match {
 	m.Suspicious = len(m.Warnings) > 0
 	b.endSightings(b.tick)
 	m.Kills, m.Hits, m.Shots, m.Sightings, m.Flashes = b.kills, b.hits, b.shots, b.sightings, b.flashes
+	m.Grenades = b.grenades
 	return m
 }
 

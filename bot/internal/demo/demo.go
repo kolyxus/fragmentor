@@ -1,8 +1,10 @@
 // Package demo turns a CS2 demo of a FACEIT match into a summary: the map,
 // the rounds with the score after each, and every player's kills, deaths,
 // assists, headshots and damage. With the summary come the events the
-// metrics are counted from: every kill, hit, shot and flash, who saw whom
-// and when, and who was alive when each round got going.
+// metrics are counted from: every kill with its context (where everyone
+// stood, how it was made), every hit, shot, grenade thrown and flash, who
+// saw whom and when, who was alive when each round got going and what they
+// carried, and when the bomb was planted.
 //
 // It is the only package that imports demoinfocs-golang, so a change of the
 // library version stays here; see docs/notes/demoinfocs.md. It knows nothing
@@ -73,6 +75,15 @@ const (
 type Match struct {
 	Map      string  `json:"map"`       // like "de_ancient"
 	TickRate float64 `json:"tick_rate"` // server ticks per second, 64 on FACEIT
+	// MaxRounds is mp_maxrounds, the regulation length of the match: its
+	// first half is the first half of the match, the rounds after it are
+	// overtime. 24 on FACEIT.
+	MaxRounds int `json:"max_rounds"`
+	// RoundTime is how long a round lasts once its freeze time ends, and
+	// BombTime how long the bomb ticks once planted, in seconds, as the
+	// server set them: 115 and 40 on FACEIT.
+	RoundTime float64 `json:"round_time"`
+	BombTime  float64 `json:"bomb_time"`
 	// Teams keep their index when they switch sides: Teams[0] is the team
 	// that started the match as CT.
 	Teams   [2]Team  `json:"teams"`
@@ -86,12 +97,13 @@ type Match struct {
 	// Warnings tell what in the demo looked wrong. They never hold names
 	// or IDs.
 	Warnings []string `json:"warnings,omitempty"`
-	// Kills, Hits, Shots, Sightings and Flashes are the events of the
-	// match, see events.go.
+	// Kills, Hits, Shots, Sightings, Grenades and Flashes are the events of
+	// the match, see events.go.
 	Kills     []Kill     `json:"kills,omitempty"`
 	Hits      []Hit      `json:"hits,omitempty"`
 	Shots     []Shot     `json:"shots,omitempty"`
 	Sightings []Sighting `json:"sightings,omitempty"`
+	Grenades  []Grenade  `json:"grenades,omitempty"`
 	Flashes   []Flash    `json:"flashes,omitempty"`
 }
 
@@ -119,6 +131,21 @@ type Round struct {
 	FreezeEndTick int `json:"freeze_end_tick"`
 	// Alive is who was alive then, the players and the bots of both sides.
 	Alive []Ref `json:"alive,omitempty"`
+	// Equipment is what each of them carried then, as the game values it.
+	// A body the demo tells no value of is left out.
+	Equipment []Loadout `json:"equipment,omitempty"`
+	// BombPlantTick is when the bomb was planted in the round, 0 if it was
+	// not; BombSite is where, "A" or "B", "" if the demo does not tell.
+	BombPlantTick int    `json:"bomb_plant_tick,omitempty"`
+	BombSite      string `json:"bomb_site,omitempty"`
+}
+
+// Loadout is what a body carried when the freeze time ended: the worth of
+// its weapons, armor, grenades and defuse kit in dollars of the game, as the
+// game counts it for the round.
+type Loadout struct {
+	Body  Ref `json:"body"` // as in Round.Alive
+	Value int `json:"value"`
 }
 
 // Side returns the side that team, an index in Match.Teams, played the

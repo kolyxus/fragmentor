@@ -21,7 +21,8 @@ import (
 // follows. Stored metrics carry it, so that the metrics of different
 // formulas are never mixed: bump it whenever a formula or a rule of
 // counting changes, or a new version of the demo parser changes the counts.
-const Version = 1
+// 2: the grenades thrown and the situations of deaths and trades.
+const Version = 2
 
 // TradeWindow is how long after a death its killer may be killed for a
 // trade, the limit included.
@@ -147,6 +148,33 @@ type Stats struct {
 	// UnusedGrenadeValue what those grenades cost, in dollars of the game.
 	DeathsWithGrenades int `json:"deaths_with_grenades"`
 	UnusedGrenadeValue int `json:"unused_grenade_value"`
+	// The grenades the player threw, those after the end of the round
+	// aside. FireGrenadesThrown is molotovs and incendiaries. EmptyFlashes
+	// is the flashbangs that blinded no enemy for MinFlash or longer,
+	// TeamFlashes those that blinded a teammate so, BadFlashes either.
+	FlashesThrown      int `json:"flashes_thrown"`
+	SmokesThrown       int `json:"smokes_thrown"`
+	HEGrenadesThrown   int `json:"he_grenades_thrown"`
+	FireGrenadesThrown int `json:"fire_grenades_thrown"`
+	DecoysThrown       int `json:"decoys_thrown"`
+	EmptyFlashes       int `json:"empty_flashes"`
+	TeamFlashes        int `json:"team_flashes"`
+	BadFlashes         int `json:"bad_flashes"`
+
+	// Situations, see Death. LoneDeaths, AdvantageDeaths and DryDeaths are
+	// deaths by enemies: untraded with live teammates all farther than
+	// LoneDistance; with more alive on the player's side than on the
+	// enemy's; untraded without damage dealt in the round before.
+	LoneDeaths      int `json:"lone_deaths"`
+	AdvantageDeaths int `json:"advantage_deaths"`
+	DryDeaths       int `json:"dry_deaths"`
+	// TeammateDeaths is the deaths of teammates by enemies while the player
+	// was alive: the chances to trade at all. TradeChances is those in
+	// which the player saw the killer and fought nobody else, and
+	// MissedTrades those of them nobody traded, see TradeChance.
+	TeammateDeaths int `json:"teammate_deaths"`
+	TradeChances   int `json:"trade_chances"`
+	MissedTrades   int `json:"missed_trades"`
 }
 
 // Clutch counts clutches: the rounds the player was the last alive of the
@@ -159,26 +187,30 @@ type Clutch struct {
 // Compute returns the metrics of the players of m, in the order of
 // m.Players. Events outside the rounds of m are left out; a demo.Match from
 // demo.Parse has none.
-func Compute(m *demo.Match) []Player {
+func Compute(m *demo.Match) []Player { return Analyze(m).Players }
+
+func newCounter(m *demo.Match) *counter {
 	rate := m.TickRate
 	if rate <= 0 {
 		rate = defaultTickRate
 	}
 	c := &counter{
-		tickRate: rate,
-		window:   ticks(TradeWindow, rate),
-		gap:      ticks(KillTimeGap, rate),
-		byID:     make(map[uint64]*player, len(m.Players)),
+		tickRate:   rate,
+		window:     ticks(TradeWindow, rate),
+		gap:        ticks(KillTimeGap, rate),
+		byID:       make(map[uint64]*player, len(m.Players)),
+		roundKills: make(map[int]map[uint64]int, len(m.Rounds)),
 	}
 	for _, p := range m.Players {
 		pl := &player{id: p.SteamID64, team: p.Team}
 		c.players = append(c.players, pl)
 		c.byID[p.SteamID64] = pl
 	}
-	var e roundEvents
-	for _, r := range m.Rounds {
-		c.round(r, e.of(m, r.Number))
-	}
+	return c
+}
+
+// result returns the metrics of the players, the rates made of the counts.
+func (c *counter) result() []Player {
 	out := make([]Player, 0, len(c.players))
 	for _, p := range c.players {
 		p.t.rates()
@@ -248,6 +280,10 @@ type counter struct {
 	gap      int // KillTimeGap in ticks
 	players  []*player
 	byID     map[uint64]*player
+	// roundKills is the kills of each player in each round, by the number
+	// of the round, and clutchLog every clutch: for the Analysis.
+	roundKills map[int]map[uint64]int
+	clutchLog  []ClutchPlay
 }
 
 type player struct {
@@ -350,6 +386,21 @@ func (s Stats) plus(o Stats) Stats {
 		GrenadeDamage:      s.GrenadeDamage + o.GrenadeDamage,
 		DeathsWithGrenades: s.DeathsWithGrenades + o.DeathsWithGrenades,
 		UnusedGrenadeValue: s.UnusedGrenadeValue + o.UnusedGrenadeValue,
+		FlashesThrown:      s.FlashesThrown + o.FlashesThrown,
+		SmokesThrown:       s.SmokesThrown + o.SmokesThrown,
+		HEGrenadesThrown:   s.HEGrenadesThrown + o.HEGrenadesThrown,
+		FireGrenadesThrown: s.FireGrenadesThrown + o.FireGrenadesThrown,
+		DecoysThrown:       s.DecoysThrown + o.DecoysThrown,
+		EmptyFlashes:       s.EmptyFlashes + o.EmptyFlashes,
+		TeamFlashes:        s.TeamFlashes + o.TeamFlashes,
+		BadFlashes:         s.BadFlashes + o.BadFlashes,
+
+		LoneDeaths:      s.LoneDeaths + o.LoneDeaths,
+		AdvantageDeaths: s.AdvantageDeaths + o.AdvantageDeaths,
+		DryDeaths:       s.DryDeaths + o.DryDeaths,
+		TeammateDeaths:  s.TeammateDeaths + o.TeammateDeaths,
+		TradeChances:    s.TradeChances + o.TradeChances,
+		MissedTrades:    s.MissedTrades + o.MissedTrades,
 	}
 	for i := range out.Clutches {
 		out.Clutches[i] = Clutch{

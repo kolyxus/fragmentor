@@ -41,6 +41,9 @@ type round struct {
 	shots         []demo.Shot
 	sightings     []demo.Sighting
 	flashes       []demo.Flash
+	grenades      []demo.Grenade
+	equipment     []demo.Loadout
+	plant         int // the tick the bomb was planted at, 0 if it was not
 }
 
 func newRound(side0, winner demo.Side) *round { return &round{side0: side0, winner: winner} }
@@ -117,7 +120,8 @@ func (g *game) play(r *round) {
 	if r.winner != r.side0 {
 		winner = 1
 	}
-	dr := demo.Round{Number: n, Winner: winner, WinnerSide: r.winner, FreezeEndTick: r.freezeEnd, Alive: r.alive}
+	dr := demo.Round{Number: n, Winner: winner, WinnerSide: r.winner, FreezeEndTick: r.freezeEnd, Alive: r.alive,
+		Equipment: r.equipment, BombPlantTick: r.plant}
 	if dr.Alive == nil {
 		for id := uint64(1); id <= 6; id++ {
 			dr.Alive = append(dr.Alive, *r.p(id))
@@ -143,6 +147,10 @@ func (g *game) play(r *round) {
 	for _, f := range r.flashes {
 		f.Round = n
 		g.m.Flashes = append(g.m.Flashes, f)
+	}
+	for _, gr := range r.grenades {
+		gr.Round = n
+		g.m.Grenades = append(g.m.Grenades, gr)
 	}
 }
 

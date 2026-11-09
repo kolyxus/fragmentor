@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
 
@@ -167,7 +168,7 @@ func TestSubmitAnalyzed(t *testing.T) {
 	f.accept(userP1, testMatchID)
 	f.step()
 	out := f.submit(userP1, testMatchID)
-	want := storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: 1, Team: 0}
+	want := storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: metrics.Version, Team: 0}
 	if out.Verdict != Analyzed || out.Result != want {
 		t.Errorf("Submit() of a parsed match = %+v, want Analyzed %+v", out, want)
 	}

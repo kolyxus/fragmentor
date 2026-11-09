@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,16 +62,21 @@ func TestCatch(t *testing.T) {
 	}
 }
 
-// testDemos returns the demos in bot/testdata. They are not in git: the test
-// skips without them, and with -short, as each takes seconds.
+// testDemos returns the demos in bot/testdata and in its folders, like
+// 7-8lvl/ for the matches of other levels: the *.zst files. They are not in
+// git: the test skips without them, and with -short, as each takes seconds.
 func testDemos(t *testing.T) []string {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("parsing real demos takes seconds")
 	}
-	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "*.dem.zst"))
-	if err != nil {
-		t.Fatal(err)
+	var files []string
+	for _, pattern := range []string{"*.zst", filepath.Join("*", "*.zst")} {
+		found, err := filepath.Glob(filepath.Join("..", "..", "testdata", pattern))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, found...)
 	}
 	if len(files) == 0 {
 		t.Skip("no demos in bot/testdata")
@@ -78,12 +84,25 @@ func testDemos(t *testing.T) []string {
 	return files
 }
 
+// demoName names the subtest of a demo: its folder in testdata, if any, and
+// the start of its name.
+func demoName(file string) string {
+	name := filepath.Base(file)
+	if len(name) > 10 {
+		name = name[:10]
+	}
+	if dir := filepath.Base(filepath.Dir(file)); dir != "testdata" {
+		name = dir + "/" + name
+	}
+	return name
+}
+
 // TestParseTestdata checks what holds for any FACEIT match. That the numbers
 // are FACEIT's is checked by go run ./cmd/parsedemo -faceit testdata.
 func TestParseTestdata(t *testing.T) {
 	twoFlashbangs := 0 // deaths with two flashbangs in all the demos
 	for _, file := range testDemos(t) {
-		t.Run(filepath.Base(file)[:10], func(t *testing.T) {
+		t.Run(demoName(file), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 			m, err := ParseFile(ctx, file, Options{})
@@ -128,6 +147,7 @@ func TestParseTestdata(t *testing.T) {
 			}
 			checkEvents(t, m)
 			twoFlashbangs += checkJournals(t, m)
+			checkContext(t, m)
 		})
 	}
 	// The ammo of the pawn counts the second flashbang: in a few matches
@@ -303,4 +323,84 @@ func TestParseTestdataFailures(t *testing.T) {
 			t.Errorf("stopped after %v", d)
 		}
 	})
+}
+
+// checkContext checks the context of the kills, the grenades, the bomb and
+// the equipment of a real match.
+func checkContext(t *testing.T, m *Match) {
+	t.Helper()
+	if m.MaxRounds != 24 || m.RoundTime != 115 || m.BombTime != 40 {
+		t.Errorf("max rounds %d, round time %v s, bomb time %v s; want 24, 115, 40", m.MaxRounds, m.RoundTime, m.BombTime)
+	}
+	same := func(a, b Ref) bool { return a.ID == b.ID && a.Bot == b.Bot }
+	placed, kills := 0, 0
+	for i, k := range m.Kills {
+		if k.Disconnect {
+			continue
+		}
+		kills++
+		if k.VictimPlace != "" {
+			placed++
+		}
+		// The victim stands among the living; the killer may be dead, a
+		// grenade of his kills after his death.
+		standing := slices.ContainsFunc(k.Positions, func(p Position) bool { return same(p.Body, k.Victim) })
+		if !standing || len(k.Positions) > 10 || slices.ContainsFunc(k.Positions, func(p Position) bool { return p.Body.Side == "" }) {
+			t.Errorf("kill %d: positions %+v, victim %+v", i, k.Positions, k.Victim)
+		}
+	}
+	if placed*10 < kills*9 {
+		t.Errorf("%d of %d kills tell where the victim stood", placed, kills)
+	}
+
+	plants := 0
+	for _, r := range m.Rounds {
+		// The value is read a tick after the freeze time ends: in a pistol
+		// round nobody carries more than the $800 to start with and the
+		// pistol, but the value of the round before would be more.
+		pistol := r.Number == 1 || r.Number == m.MaxRounds/2+1
+		bad := len(r.Equipment) != len(r.Alive)
+		for _, l := range r.Equipment {
+			bad = bad || l.Value < 0 || l.Value > 10000 || pistol && l.Value > 1000 || l.Body.Side == ""
+		}
+		if bad {
+			t.Errorf("round %d: equipment %+v of %d alive", r.Number, r.Equipment, len(r.Alive))
+		}
+		if r.BombPlantTick != 0 {
+			plants++
+			if r.BombPlantTick < r.FreezeEndTick || r.BombPlantTick > r.EndTick || r.BombSite != "A" && r.BombSite != "B" {
+				t.Errorf("round %d: the bomb planted at tick %d on %q, the round from %d to %d", r.Number, r.BombPlantTick, r.BombSite, r.FreezeEndTick, r.EndTick)
+			}
+		}
+	}
+	if plants == 0 {
+		t.Error("no bomb planted in a match")
+	}
+
+	grenades := make(map[int]Grenade)
+	kinds := make(map[string]int)
+	for i, g := range m.Grenades {
+		if g.ID != i+1 || GrenadePrice(g.Weapon) == 0 || g.Thrower.Side == "" || g.Round < 1 || g.Round > len(m.Rounds) {
+			t.Errorf("grenade %d = %+v", i, g)
+		}
+		grenades[g.ID] = g
+		kinds[g.Weapon]++
+	}
+	if kinds[Flashbang] == 0 || kinds[SmokeGrenade] == 0 || kinds[HEGrenade] == 0 || kinds[Molotov]+kinds[Incendiary] == 0 {
+		t.Errorf("grenades thrown: %v", kinds)
+	}
+	linked := 0
+	for i, f := range m.Flashes {
+		if f.Grenade == 0 {
+			continue
+		}
+		linked++
+		g, ok := grenades[f.Grenade]
+		if !ok || g.Weapon != Flashbang || g.Tick > f.Tick || g.Round != f.Round || f.Thrower == nil || !same(*f.Thrower, g.Thrower) {
+			t.Errorf("flash %d = %+v of grenade %+v", i, f, g)
+		}
+	}
+	if linked*10 < len(m.Flashes)*9 {
+		t.Errorf("%d of %d flashes tell their flashbang", linked, len(m.Flashes))
+	}
 }

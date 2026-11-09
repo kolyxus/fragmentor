@@ -192,6 +192,27 @@ err := p.ParseToEnd(ctx) // ctx ограничивает время
     в `Inventory` и счётчик `m_iAmmo[14]` (`Player.FlashbangCount()`).
   - В заголовке демки FACEIT ID матча нет: `server_name` — `FACEIT.com register to play here`.
 - **Бомба.** Смерть от C4 — `Kill` без убийцы, в том же тике после `RoundEnd`.
+- **Контекст для находок (шаг 8а).** Проверено на 13 демках testdata, 2026-11-09:
+  - `IngameTick()` в v6 берётся из заголовка каждого кадра демки (`parseFrame`: `tick` команды), а не из `NET_Tick`;
+    тики начинаются с 0 (демка 0…110 637 тиков, 110 682 кадра). Значит, это тики самой записи — то, что ждёт
+    `demo_gototick`. Проверка в CS2 — в DECISIONS.
+  - Зона — `Player.LastPlaceName()` (`m_szLastPlaceName` тела): названия навигации карты, `BombsiteB`, `TopofMid`,
+    `TSideLower`, `CTSpawn`. У 90%+ убийств зона жертвы есть.
+  - Флаги `Kill`: `ThroughSmoke`, `IsWallBang()` (`PenetratedObjects > 0`), `NoScope`, `AttackerBlind`, `Distance`.
+    Оружие в руках жертвы — `Victim.ActiveWeapon()` в момент события (сущности ещё не обновились).
+  - Позиции — `Player.Position()` тела, Z — у ног. Мёртвые в том же тике в состоянии игры ещё живые: их отсекает
+    наш журнал.
+  - Снаряжение: `EquipmentValueFreezeTimeEnd()` (`m_unFreezetimeEndEquipmentValue`) **в самом событии
+    `RoundFreezetimeEnd` ещё от прошлого раунда** — в 13-м раунде у всех $5800–7950 вместо $850. Читать на кадре
+    со следующим тиком: тогда пистолетные раунды дают $200–1000, тест это проверяет. `EquipmentValueCurrent()`
+    в событии уже верная, но это не число игры «на конец заморозки».
+  - Время раунда — `Rules().RoundTime()` (`m_iRoundTime`, 1m55s), запасной вариант — `mp_roundtime_defuse` (1.92).
+    `Rules().BombTime()` в демках FACEIT падает с ошибкой: `mp_c4timer` в демке нет. Таймер — `m_flTimerLength`
+    сущности `CPlantedC4` (40), её ловит `ServerClasses().FindByName("CPlantedC4").OnEntityCreated` после
+    `DataTablesParsed`. `BombExplode` библиотека присылает через 41,0 с после `BombPlanted`.
+  - Броски — `GrenadeProjectileThrow` (`Projectile.WeaponInstance.Type` различает молотов и зажигательную).
+    `FlashExplode` приходит **дважды** на каждую флешку (38 бросков — 76 событий). Ослепление связывается
+    с броском по `Projectile.UniqueID()` в `PlayerFlashed`: в матче 33 флешки из 38 кого-то ослепили.
 - **Названия команд.** `ClanName()` — `team_<ник капитана>`, как `Team` в статистике FACEIT.
 - **Длина матча.** `mp_maxrounds` = 24. Овертайм — по 3 раунда на сторону; в начале овертайма стороны
   не меняются, после трёх раундов меняются.

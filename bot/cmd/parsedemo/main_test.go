@@ -30,14 +30,14 @@ func TestMatchID(t *testing.T) {
 
 func TestDemoFiles(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"b.dem.zst", "a.dem.zst", "notes.txt"} {
+	for _, name := range []string{"b.dem.zst", "a.dem.zst", "c.zst", "notes.txt"} {
 		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	single := filepath.Join(dir, "notes.txt")
 	got, err := demoFiles([]string{dir, single})
-	want := []string{filepath.Join(dir, "a.dem.zst"), filepath.Join(dir, "b.dem.zst"), single}
+	want := []string{filepath.Join(dir, "a.dem.zst"), filepath.Join(dir, "b.dem.zst"), filepath.Join(dir, "c.zst"), single}
 	if err != nil || !slices.Equal(got, want) {
 		t.Errorf("demoFiles = %v, %v; want %v", got, err, want)
 	}
@@ -140,12 +140,14 @@ func TestCompareOtherMap(t *testing.T) {
 
 func TestWithoutEvents(t *testing.T) {
 	m := &demo.Match{
-		Rounds: []demo.Round{{Number: 1, Alive: []demo.Ref{{ID: 1}}}},
-		Kills:  []demo.Kill{{Tick: 1}},
-		Hits:   []demo.Hit{{Tick: 1}},
+		Rounds:   []demo.Round{{Number: 1, Alive: []demo.Ref{{ID: 1}}, Equipment: []demo.Loadout{{Value: 850}}}},
+		Kills:    []demo.Kill{{Tick: 1}},
+		Hits:     []demo.Hit{{Tick: 1}},
+		Grenades: []demo.Grenade{{ID: 1}},
 	}
 	out := withoutEvents(m)
-	if out.Kills != nil || out.Hits != nil || out.Rounds[0].Alive != nil || out.Rounds[0].Number != 1 {
+	if out.Kills != nil || out.Hits != nil || out.Grenades != nil || out.Rounds[0].Alive != nil ||
+		out.Rounds[0].Equipment != nil || out.Rounds[0].Number != 1 {
 		t.Errorf("withoutEvents = %+v", out)
 	}
 	if len(m.Kills) != 1 || len(m.Hits) != 1 || len(m.Rounds[0].Alive) != 1 {
