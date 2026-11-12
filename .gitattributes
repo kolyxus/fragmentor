@@ -1,3 +1,10 @@
+# Text files have LF line endings in every checkout, Windows included,
+# whatever core.autocrlf says: with CRLF, gofmt -l in make lint flags every
+# Go file, and the files embedded with go:embed differ from machine to
+# machine. Binary files, which git detects by their content (text=auto),
+# are left as they are.
+* text=auto eol=lf
+
 # Files that go to the Linux server keep LF line endings in a Windows
 # checkout too: with CRLF, bash and systemd choke on them.
 *.sh       text eol=lf
