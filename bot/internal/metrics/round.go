@@ -34,9 +34,9 @@ func (c *counter) round(r demo.Round, e events) {
 	c.opening(kills, side)
 	c.trades(kills, side, f)
 	c.clutches(r, kills, side)
-	c.shooting(e, side)
+	c.shooting(r, e, side)
 	c.killTimes(hits, side)
-	c.grenades(e, side)
+	c.grenades(r, e, side)
 
 	started := make(map[uint64]bool)
 	for _, a := range r.Alive {
@@ -245,7 +245,9 @@ func (c *counter) clutches(r demo.Round, kills []demo.Kill, side func(*player) *
 				if r.WinnerSide == s {
 					cl.Wins++
 				}
-				c.clutchLog = append(c.clutchLog, ClutchPlay{Round: r.Number, Player: p.id, Enemies: enemies, Won: r.WinnerSide == s})
+				play := ClutchPlay{Round: r.Number, Tick: k.Tick, Player: p.id, Enemies: enemies, Won: r.WinnerSide == s}
+				_, play.Clock, play.Planted = c.clock.of(r, k.Tick)
+				c.clutchLog = append(c.clutchLog, play)
 			}
 		}
 	}

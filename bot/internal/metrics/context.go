@@ -55,7 +55,10 @@ const (
 // events are of the players of the match: a bot that a player controls is
 // that player, bots no player controls are left out.
 type Analysis struct {
-	Players []Player
+	// TickRate is the ticks in a second of the match, 64 if the demo tells
+	// none: what the ticks of the events are counted in.
+	TickRate float64
+	Players  []Player
 	// Rounds is the context of each round, in the order of the match.
 	Rounds []RoundInfo
 	// Deaths is the deaths of players by enemies, in the order of the
@@ -69,6 +72,15 @@ type Analysis struct {
 	Chances []TradeChance
 	// Clutches is every clutch, see Stats.Clutches.
 	Clutches []ClutchPlay
+	// RoundShots is the shots of rifles and sniper rifles the players fired
+	// in sight of an enemy, by round and player: the base of the shots on
+	// the move. A round in which a player fired none has no entry of his.
+	RoundShots []RoundShots
+	// Fights is every fight of the first shot, see Stats.FirstShotFights.
+	Fights []Fight
+	// GrenadeHits is the damage of the grenades, see Stats.GrenadeDamage:
+	// what the HE grenades and what the fire of a player took in a round.
+	GrenadeHits []GrenadeHit
 }
 
 // RoundInfo is the context of a round.
@@ -98,6 +110,11 @@ type Death struct {
 	// Killer is the SteamID64 of the player who killed, 0 for a bot no
 	// player controls.
 	Killer uint64
+	// Assister is the SteamID64 of the player who got the assist, as FACEIT
+	// counts assists, 0 if nobody did; FlashAssist means he got it for
+	// blinding the victim.
+	Assister    uint64
+	FlashAssist bool
 	// Elapsed is the time since the freeze time ended, in seconds. Clock is
 	// what the round clock showed: the time left of the round, or of the
 	// bomb once it was planted (Planted). 0 after the time is out.
@@ -157,9 +174,12 @@ type Death struct {
 // Flashbang is a flashbang a player threw and whom it blinded for MinFlash
 // or longer: Empty means no enemy, TeamFlash at least one teammate.
 type Flashbang struct {
-	Grenade   int // ID in demo.Match.Grenades
-	Round     int
-	Tick      int
+	Grenade int // ID in demo.Match.Grenades
+	Round   int
+	Tick    int
+	// Clock and Planted are the round clock as it was thrown, as in Death.
+	Clock     float64
+	Planted   bool
 	Thrower   uint64
 	Enemies   int
 	Teammates int
@@ -185,10 +205,60 @@ type TradeChance struct {
 
 // ClutchPlay is a clutch of a player, see Stats.Clutches.
 type ClutchPlay struct {
-	Round   int
+	Round int
+	// Tick is when the clutch began: the death that left the player the
+	// last alive. Clock and Planted are the round clock then, as in Death.
+	Tick    int
+	Clock   float64
+	Planted bool
 	Player  uint64
 	Enemies int // the X of 1vX
 	Won     bool
+}
+
+// RoundShots is the shots of rifles and sniper rifles that a player fired
+// in a round while seeing a live enemy, from guns of a known speed: the base
+// of the shots on the move, see Stats.MovingBase.
+type RoundShots struct {
+	Round  int
+	Player uint64
+	Shots  int // all of them
+	Moving int // those on the move
+	// Tick is the first shot on the move, the first shot if none was; Clock
+	// and Planted are the round clock then, as in Death, and Weapon the gun.
+	Tick    int
+	Clock   float64
+	Planted bool
+	Weapon  string
+}
+
+// Fight is a fight of the first shot: a stretch of a player seeing an enemy
+// in which he hit that enemy and fired a rifle first.
+type Fight struct {
+	Round int
+	// Tick is the first shot; Clock and Planted are the round clock then, as
+	// in Death, and Weapon the rifle.
+	Tick    int
+	Clock   float64
+	Planted bool
+	Player  uint64
+	Weapon  string
+	Hit     bool // the first shot hit that enemy
+}
+
+// GrenadeHit is the health that the HE grenades of a player, or his fire,
+// took from enemies in a round.
+type GrenadeHit struct {
+	Round int
+	// Tick is the first hit; Clock and Planted are the round clock then, as
+	// in Death.
+	Tick    int
+	Clock   float64
+	Planted bool
+	Player  uint64
+	Fire    bool // a molotov or an incendiary grenade, an HE grenade if not
+	Damage  int
+	Enemies int // how many bodies it hurt
 }
 
 // Analyze returns the metrics of the players of m, as Compute does, with
@@ -200,14 +270,31 @@ func Analyze(m *demo.Match) *Analysis {
 		c.round(r, e.of(m, r.Number))
 	}
 	a := c.annotate(m)
+	a.TickRate = c.tickRate
 	a.Players = c.result()
 	a.Clutches = c.clutchLog
+	a.RoundShots = c.shotLog
+	a.Fights = c.fightLog
+	a.GrenadeHits = c.grenadeLog
 	return a
 }
 
 // matchClock is what the clock of a round needs.
 type matchClock struct {
 	tickRate, roundTime, bombTime float64
+}
+
+// clockOf returns the clock of the rounds of m, with the round time and the
+// bomb timer of FACEIT if the demo tells none.
+func clockOf(m *demo.Match, tickRate float64) matchClock {
+	mc := matchClock{tickRate: tickRate, roundTime: m.RoundTime, bombTime: m.BombTime}
+	if mc.roundTime <= 0 {
+		mc.roundTime = defaultRoundTime
+	}
+	if mc.bombTime <= 0 {
+		mc.bombTime = defaultBombTime
+	}
+	return mc
 }
 
 func (mc matchClock) of(r demo.Round, tick int) (elapsed, clock float64, planted bool) {
@@ -265,13 +352,7 @@ func indexByRound[E any](list []E, round func(E) int) map[int][]int {
 // of the situations, the grenades thrown and the flashbangs.
 func (c *counter) annotate(m *demo.Match) *Analysis {
 	a := &Analysis{}
-	mc := matchClock{tickRate: c.tickRate, roundTime: m.RoundTime, bombTime: m.BombTime}
-	if mc.roundTime <= 0 {
-		mc.roundTime = defaultRoundTime
-	}
-	if mc.bombTime <= 0 {
-		mc.bombTime = defaultBombTime
-	}
+	mc := c.clock
 	kills := indexByRound(m.Kills, func(k demo.Kill) int { return k.Round })
 	hits := indexByRound(m.Hits, func(h demo.Hit) int { return h.Round })
 	shots := indexByRound(m.Shots, func(s demo.Shot) int { return s.Round })
@@ -358,6 +439,9 @@ func (c *counter) deaths(a *Analysis, r demo.Round, info RoundInfo, re roundInde
 		}
 		if killer := c.coached(coach(*k.Killer)); killer != nil {
 			d.Killer = killer.id
+		}
+		if as := c.player(k.Assister); as != nil && enemies(k.Assister, &k.Victim) {
+			d.Assister, d.FlashAssist = as.id, k.FlashAssist
 		}
 		d.Elapsed, d.Clock, d.Planted = mc.of(r, k.Tick)
 		for _, g := range k.Grenades {
@@ -507,6 +591,7 @@ func (c *counter) grenadesThrown(a *Analysis, m *demo.Match, rounds map[int]demo
 		case demo.Flashbang:
 			st.FlashesThrown++
 			fb := Flashbang{Grenade: g.ID, Round: g.Round, Tick: g.Tick, Thrower: p.id}
+			_, fb.Clock, fb.Planted = c.clock.of(r, g.Tick)
 			for _, f := range blinded[g.ID] {
 				switch {
 				case coach(f.Victim) == thrower:

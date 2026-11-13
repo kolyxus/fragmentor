@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
@@ -23,8 +24,9 @@ type span struct {
 }
 
 // shooting counts accuracy, the first shot and shots on the move in the
-// round of e.
-func (c *counter) shooting(e events, side func(*player) *Stats) {
+// round r of e, and logs the shots in sight and the fights of the first
+// shot for the Analysis.
+func (c *counter) shooting(r demo.Round, e events, side func(*player) *Stats) {
 	seen := make(map[who][]span)
 	for _, s := range e.sightings {
 		if !computerBot(s.Target) {
@@ -49,7 +51,8 @@ func (c *counter) shooting(e events, side func(*player) *Stats) {
 		return slices.ContainsFunc(seen[w], func(sp span) bool { return sp.from <= tick && tick <= sp.to })
 	}
 
-	shots := make(map[who][]demo.Shot) // the shots of the round that count, by shooter
+	shots := make(map[who][]demo.Shot)       // the shots of the round that count, by shooter
+	inRound := make(map[*player]*RoundShots) // those of them in sight, of guns of a known speed
 	for _, s := range e.shots {
 		w := coach(s.Shooter)
 		p := c.coached(w)
@@ -68,10 +71,31 @@ func (c *counter) shooting(e events, side func(*player) *Stats) {
 			}
 		}
 		if s.MaxSpeed > 0 {
+			moving := s.Speed > MovingShare*s.MaxSpeed
 			st.MovingBase++
-			if s.Speed > MovingShare*s.MaxSpeed {
+			if moving {
 				st.MovingShots++
 			}
+			rs := inRound[p]
+			if rs == nil {
+				rs = &RoundShots{Round: r.Number, Player: p.id}
+				inRound[p] = rs
+			}
+			// The moment is the first shot on the move, and the first shot
+			// until there is one.
+			if rs.Shots == 0 || moving && rs.Moving == 0 {
+				rs.Tick, rs.Weapon = s.Tick, s.Weapon
+				_, rs.Clock, rs.Planted = c.clock.of(r, s.Tick)
+			}
+			rs.Shots++
+			if moving {
+				rs.Moving++
+			}
+		}
+	}
+	for _, p := range c.players {
+		if rs := inRound[p]; rs != nil {
+			c.shotLog = append(c.shotLog, *rs)
 		}
 	}
 
@@ -79,6 +103,7 @@ func (c *counter) shooting(e events, side func(*player) *Stats) {
 	// which the player hit that enemy, did the first shot hit him? Fights
 	// opened with another gun than a rifle do not count; shotguns are no
 	// first shots.
+	var fights []Fight
 	for w, spans := range seen {
 		p := c.coached(w)
 		if p == nil {
@@ -103,11 +128,25 @@ func (c *counter) shooting(e events, side func(*player) *Stats) {
 			}
 			st := side(p)
 			st.FirstShotFights++
-			if hitHim(first.Tick) {
+			f := Fight{Round: r.Number, Tick: first.Tick, Player: p.id, Weapon: first.Weapon, Hit: hitHim(first.Tick)}
+			_, f.Clock, f.Planted = c.clock.of(r, first.Tick)
+			if f.Hit {
 				st.FirstShotHits++
 			}
+			fights = append(fights, f)
 		}
 	}
+	// The fights come out of a map: put them in the order of the round.
+	slices.SortFunc(fights, func(a, b Fight) int {
+		hit := func(f Fight) int {
+			if f.Hit {
+				return 1
+			}
+			return 0
+		}
+		return cmp.Or(cmp.Compare(a.Tick, b.Tick), cmp.Compare(a.Player, b.Player), cmp.Compare(hit(a), hit(b)))
+	})
+	c.fightLog = append(c.fightLog, fights...)
 }
 
 // killTimes counts the duels of the kill time in the round: a player's

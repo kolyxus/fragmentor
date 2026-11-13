@@ -205,7 +205,10 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 		}
 	}
 
-	type sums struct{ deaths, untraded, lone, advantage, dry, chances, missed, flashes, empty, team, bad, enemies int }
+	type sums struct {
+		deaths, untraded, lone, advantage, dry, chances, missed, flashes, empty, team, bad, enemies int
+		shots, moving, fights, firstHits, grenadeDamage, clutches, clutchWins                       int
+	}
 	got := make(map[uint64]*sums)
 	for _, p := range a.Players {
 		got[p.SteamID64] = &sums{}
@@ -283,6 +286,75 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 			s.bad++
 		}
 	}
+	// The events of the shooting, the grenade damage and the clutches: each
+	// at a moment of its round, and adding up to the metrics below.
+	if a.TickRate != m.TickRate {
+		t.Errorf("tick rate %v, the match has %v", a.TickRate, m.TickRate)
+	}
+	moment := func(round, tick int, clock float64, planted bool) bool {
+		if round < 1 || round > len(m.Rounds) {
+			return false
+		}
+		r := m.Rounds[round-1]
+		limit := m.RoundTime
+		if planted {
+			limit = m.BombTime
+		}
+		return tick >= r.FreezeEndTick && clock >= 0 && clock <= limit && planted == (r.BombPlantTick > 0 && tick >= r.BombPlantTick)
+	}
+	for i, rs := range a.RoundShots {
+		s := got[rs.Player]
+		if s == nil || rs.Shots < 1 || rs.Moving > rs.Shots || rs.Weapon == "" || !moment(rs.Round, rs.Tick, rs.Clock, rs.Planted) ||
+			i > 0 && a.RoundShots[i-1].Round == rs.Round && a.RoundShots[i-1].Player == rs.Player {
+			t.Errorf("round shots %d = %+v", i, rs)
+			continue
+		}
+		s.shots += rs.Shots
+		s.moving += rs.Moving
+	}
+	for i, f := range a.Fights {
+		s := got[f.Player]
+		if s == nil || f.Weapon == "" || !moment(f.Round, f.Tick, f.Clock, f.Planted) || i > 0 && a.Fights[i-1].Round > f.Round {
+			t.Errorf("fight %d = %+v", i, f)
+			continue
+		}
+		s.fights++
+		if f.Hit {
+			s.firstHits++
+		}
+	}
+	for i, g := range a.GrenadeHits {
+		s := got[g.Player]
+		// A grenade hurts five enemies at most; fire may burn after the round.
+		if s == nil || g.Damage < 1 || g.Enemies < 1 || g.Enemies > 5 || g.Round < 1 || g.Round > len(m.Rounds) || g.Clock < 0 {
+			t.Errorf("grenade hit %d = %+v", i, g)
+			continue
+		}
+		s.grenadeDamage += g.Damage
+	}
+	for i, cl := range a.Clutches {
+		s := got[cl.Player]
+		if s == nil || cl.Enemies < 1 || cl.Enemies > 5 || !moment(cl.Round, cl.Tick, cl.Clock, cl.Planted) {
+			t.Errorf("clutch %d = %+v", i, cl)
+			continue
+		}
+		s.clutches++
+		if cl.Won {
+			s.clutchWins++
+		}
+	}
+	flashAssists := make(map[uint64]int)
+	for i, d := range a.Deaths {
+		if d.FlashAssist && d.Assister == 0 || d.Assister != 0 && (got[d.Assister] == nil || d.Assister == d.Victim || d.Assister == d.Killer) {
+			t.Errorf("death %d: the assist of %d, by a flash %t: %+v", i, d.Assister, d.FlashAssist, d)
+		}
+		if d.FlashAssist {
+			flashAssists[d.Assister]++
+		}
+	}
+	if len(a.RoundShots) == 0 || len(a.Fights) == 0 || len(a.GrenadeHits) == 0 || len(a.Clutches) == 0 {
+		t.Errorf("%d round shots, %d fights, %d grenade hits, %d clutches", len(a.RoundShots), len(a.Fights), len(a.GrenadeHits), len(a.Clutches))
+	}
 	for i, p := range a.Players {
 		st, s := p.Match, got[p.SteamID64]
 		want := sums{
@@ -291,6 +363,16 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 			chances: st.TradeChances, missed: st.MissedTrades,
 			flashes: st.FlashesThrown, empty: st.EmptyFlashes, team: st.TeamFlashes, bad: st.BadFlashes,
 			enemies: s.enemies,
+			shots:   st.MovingBase, moving: st.MovingShots, fights: st.FirstShotFights, firstHits: st.FirstShotHits,
+			grenadeDamage: st.GrenadeDamage,
+		}
+		for _, cl := range st.Clutches {
+			want.clutches += cl.Attempts
+			want.clutchWins += cl.Wins
+		}
+		// An assist is a flash assist or not, and FACEIT counts both.
+		if flashAssists[p.SteamID64] > st.Assists {
+			t.Errorf("player %d: %d flash assists of %d assists", i, flashAssists[p.SteamID64], st.Assists)
 		}
 		if *s != want {
 			t.Errorf("player %d: the events add up to %+v, the metrics %+v", i, *s, want)

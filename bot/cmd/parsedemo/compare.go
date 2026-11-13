@@ -51,9 +51,11 @@ func compare(m *demo.Match, players []metrics.Player, details faceit.Match, stat
 	for _, p := range m.Players {
 		ours[strconv.FormatUint(p.SteamID64, 10)] = p
 	}
-	adr := make(map[string]float64) // by SteamID64
+	// The damage and the rounds the ADR is made of, by SteamID64.
+	type perRound struct{ damage, rounds int }
+	adr := make(map[string]perRound)
 	for _, p := range players {
-		adr[strconv.FormatUint(p.SteamID64, 10)] = p.Match.ADR
+		adr[strconv.FormatUint(p.SteamID64, 10)] = perRound{p.Match.Damage, p.Match.Rounds}
 	}
 
 	seen := make(map[string]bool)
@@ -83,7 +85,7 @@ func compare(m *demo.Match, players []metrics.Player, details faceit.Match, stat
 			add(p.Kills == fp.Kills && p.Deaths == fp.Deaths && p.Assists == fp.Assists && p.Team == team,
 				"    %-16s K/D/A %2d/%2d/%2d  FACEIT %2d/%2d/%2d  HS %s  damage %s  ADR %s",
 				fp.Nickname, p.Kills, p.Deaths, p.Assists, fp.Kills, fp.Deaths, fp.Assists,
-				pair(p.Headshots, fp.Headshots), pair(p.Damage, fp.Damage), pairTenths(adr[sid], fp.ADR))
+				pair(p.Headshots, fp.Headshots), pair(p.Damage, fp.Damage), pairADR(adr[sid].damage, adr[sid].rounds, fp.ADR))
 		}
 	}
 	for _, p := range m.Players {
@@ -139,14 +141,30 @@ func pair(ours, theirs int) string {
 	return s
 }
 
-// pairTenths shows our number and FACEIT's to a tenth, with * if they differ
-// so. FACEIT rounds a half to the even tenth, as %.1f does: 1614 damage in
-// 24 rounds, 67.25, is 67.2.
-func pairTenths(ours, theirs float64) string {
-	a, b := fmt.Sprintf("%.1f", ours), fmt.Sprintf("%.1f", theirs)
+// pairADR shows our ADR, the damage a round, and FACEIT's to a tenth, with *
+// if they differ so.
+func pairADR(damage, rounds int, theirs float64) string {
+	t := adrTenths(damage, rounds)
+	a, b := fmt.Sprintf("%d.%d", t/10, t%10), fmt.Sprintf("%.1f", theirs)
 	s := a + "/" + b
 	if a != b {
 		s += "*"
 	}
 	return s
+}
+
+// adrTenths returns the damage a round in tenths as FACEIT rounds it: a
+// half goes to the even tenth, so 1614 damage in 24 rounds, 67.25, is 672.
+// It counts in whole numbers. A float64 holds no exact half of a tenth, and
+// rounding one went wrong both ways: 83.55 came out as 83.5 where FACEIT
+// shows 83.6, and 103.45 as 103.5 where FACEIT shows 103.4.
+func adrTenths(damage, rounds int) int {
+	if rounds <= 0 || damage < 0 {
+		return 0
+	}
+	tenths, rest := damage*10/rounds, damage*10%rounds
+	if 2*rest > rounds || 2*rest == rounds && tenths%2 == 1 {
+		tenths++
+	}
+	return tenths
 }

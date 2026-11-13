@@ -86,6 +86,7 @@ go run ./cmd/parsedemo -events testdata/<демка>.dem.zst  # ещё и жур
 go run ./cmd/parsedemo -faceit -json=false testdata      # сверка счёта, K/D/A и ADR с FACEIT
 go run ./cmd/parsedemo -csda <папка> -json=false testdata # сверка метрик с cs-demo-analyzer
 go run ./cmd/parsedemo -scope testdata/scope.json -json=false testdata # сверка стрельбы со Scope.gg
+go run ./cmd/parsedemo -findings testdata testdata/3-4lvl testdata/7-8lvl > findings.txt # находки всех игроков
 ```
 
 - С `-faceit` ID матча берётся из имени файла (`<match_id>-1-1.dem.zst`, как у FACEIT), ключ — из `.env`.
@@ -98,13 +99,18 @@ go run ./cmd/parsedemo -scope testdata/scope.json -json=false testdata # све�
   `cmd/parsedemo/scope.go`, в файле ники, поэтому он в `testdata/` и в git не попадает). Утилита печатает
   наши и их цифры по каждому игроку и в конце корреляцию по всем демкам. Расхождения код выхода не меняют.
   Что совпадает и почему — `docs/notes/scope-gg.md`.
+- С `-findings` вместо JSON печатаются находки из `internal/findings` (правила — `docs/FINDINGS.md`): для каждого
+  игрока каждой демки — меры рядом с лобби, тиммейтами и соперниками, сработавшие правила с весами
+  и доказательствами (раунд, часы, зона, `demo_gototick`) и то, что попало бы в разбор; в конце — сводка
+  по правилам: у скольких игроков сработало каждое и сколько весят его находки. Своё среднее игрока — его
+  остальные демки этого запуска, поэтому папки лучше давать все сразу. Папка — это её `*.zst`, без вложенных.
 - Сводку, где раунды не сходятся со счётом или с подсчётом игры, утилита помечает `SUSPICIOUS`
   и тоже выходит с кодом 1; причины — в `warnings` (правило — в `docs/METRICS.md`).
 - Время разбора и пиковая память печатаются в stderr; остальные флаги — `-h`.
 - В выводе ники и SteamID — его не коммитим.
 
-`make test` разбирает и демки из `testdata/`: тест `internal/demo` по одной, тест `internal/metrics` все сразу;
-с семью демками это ~45 с. `go test -short ./...` эти тесты пропускает. С `-race` разбор в 10–20 раз медленнее:
+`make test` разбирает и демки из `testdata/` и её папок: тест `internal/demo` по одной, тесты `internal/metrics`
+и `internal/findings` все сразу; с 13 демками это ~1,5–2 мин. `go test -short ./...` эти тесты пропускает. С `-race` разбор в 10–20 раз медленнее:
 `go test -race -timeout 30m ./...` идёт около 12 минут. Как устроен разбор — в `docs/notes/demoinfocs.md`,
 формулы метрик — в `docs/METRICS.md`.
 

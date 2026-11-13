@@ -4,15 +4,18 @@
 // internal/metrics. It reports how long each demo took and the peak memory.
 // With -faceit it compares the score and K/D/A with the match stats of the
 // FACEIT Data API; with -csda, the metrics with those of cs-demo-analyzer;
-// with -scope, the shooting metrics with the numbers of Scope.gg.
+// with -scope, the shooting metrics with the numbers of Scope.gg. With
+// -findings it prints, in place of the JSON, the findings of
+// internal/findings for every player of every demo and a summary of the
+// rules, see findings.go.
 // It exits with status 1 if a demo fails, its summary is suspicious (see
 // demo.Match) or anything differs from FACEIT.
 //
 // Run from bot/:
 //
-//	go run ./cmd/parsedemo [-faceit] [-csda folder] [-scope file.json] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
+//	go run ./cmd/parsedemo [-faceit] [-findings] [-csda folder] [-scope file.json] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
 //
-// A folder stands for every *.dem.zst in it. For -faceit the match ID comes
+// A folder stands for every *.zst in it. For -faceit the match ID comes
 // from the file name, <match_id>-1-1.dem.zst, as FACEIT names its demos, and
 // FACEIT_API_KEY comes from the environment or .env, as for the bot. For
 // -csda the folder holds the JSON of cs-demo-analyzer for each demo, see
@@ -57,6 +60,7 @@ func main() {
 	printEvents := flag.Bool("events", false, "print the events of the match and who was alive in each round in the JSON too")
 	csdaDir := flag.String("csda", "", "folder with the JSON of cs-demo-analyzer to compare the metrics with")
 	scopePath := flag.String("scope", "", "JSON file with the numbers of Scope.gg to compare the shooting metrics with")
+	withFindings := flag.Bool("findings", false, "print the findings of every player and a summary of the rules in place of the JSON")
 	envPath := flag.String("env", ".env", "file with FACEIT_API_KEY, for -faceit")
 	flag.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "usage: parsedemo [flags] <file.dem.zst | folder>...")
@@ -76,8 +80,9 @@ func main() {
 	r := &runner{
 		opts:        demo.Options{MaxSize: *maxSize << 20},
 		timeout:     *timeout,
-		printJSON:   *printJSON,
+		printJSON:   *printJSON && !*withFindings,
 		printEvents: *printEvents,
+		findings:    *withFindings,
 		csdaDir:     *csdaDir,
 		out:         os.Stdout,
 		log:         os.Stderr,
@@ -144,6 +149,7 @@ type runner struct {
 	timeout     time.Duration
 	printJSON   bool
 	printEvents bool
+	findings    bool           // -findings
 	faceit      *faceit.Client // nil without -faceit
 	csdaDir     string         // "" without -csda
 	scope       scopeFile      // nil without -scope
@@ -153,6 +159,10 @@ type runner struct {
 	// scopePairs collects the values of every demo for the summary of
 	// -scope, under mu.
 	scopePairs map[string][]scopePair
+	// analyzed collects the demos for -findings, by the index of the file,
+	// under mu: the findings need them all, as the past of a player is his
+	// other demos of the run.
+	analyzed map[int]analyzed
 }
 
 // run parses the files, n at a time, and reports whether all went well.
@@ -163,7 +173,7 @@ func (r *runner) run(files []string, n int) bool {
 		ok  = true
 		okm sync.Mutex
 	)
-	for _, f := range files {
+	for i, f := range files {
 		if n == 1 {
 			// One at a time, so the peak memory of each demo is its own.
 			r.mem.reset()
@@ -171,7 +181,7 @@ func (r *runner) run(files []string, n int) bool {
 		sem <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-sem }()
-			if !r.one(f, n == 1) {
+			if !r.one(i, f, n == 1) {
 				okm.Lock()
 				ok = false
 				okm.Unlock()
@@ -187,21 +197,35 @@ func (r *runner) run(files []string, n int) bool {
 			fmt.Fprintln(r.log, l)
 		}
 	}
+	if r.findings {
+		// The demos that parsed, in the order of the files.
+		var demos []analyzed
+		for i := range files {
+			if d, ok := r.analyzed[i]; ok {
+				demos = append(demos, d)
+			}
+		}
+		findingsReport(r.out, demos)
+	}
 	fmt.Fprintf(r.log, "peak memory of the process: %s\n", r.mem.peak())
 	return ok
 }
 
-// one parses a demo and prints its summary and report. ownPeak means no
-// other demo was parsed at the same time.
-func (r *runner) one(path string, ownPeak bool) bool {
+// one parses the demo of index i among the files and prints its summary and
+// report. ownPeak means no other demo was parsed at the same time.
+func (r *runner) one(i int, path string, ownPeak bool) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 	start := time.Now()
 	m, err := demo.ParseFile(ctx, path, r.opts)
 	elapsed := time.Since(start)
-	var players []metrics.Player
+	var (
+		players  []metrics.Player
+		analysis *metrics.Analysis
+	)
 	if err == nil {
-		players = metrics.Compute(m)
+		analysis = metrics.Analyze(m)
+		players = analysis.Players
 	}
 
 	var report []string
@@ -233,6 +257,12 @@ func (r *runner) one(path string, ownPeak bool) bool {
 			fmt.Fprintf(r.log, "%s\n", pe.Stack)
 		}
 		return false
+	}
+	if r.findings {
+		if r.analyzed == nil {
+			r.analyzed = make(map[int]analyzed)
+		}
+		r.analyzed[i] = keep(path, m, analysis)
 	}
 	if r.printJSON {
 		out := m

@@ -196,6 +196,7 @@ func newCounter(m *demo.Match) *counter {
 	}
 	c := &counter{
 		tickRate:   rate,
+		clock:      clockOf(m, rate),
 		window:     ticks(TradeWindow, rate),
 		gap:        ticks(KillTimeGap, rate),
 		byID:       make(map[uint64]*player, len(m.Players)),
@@ -276,14 +277,20 @@ func byRound[E any](list []E, round func(E) int) map[int][]E {
 
 type counter struct {
 	tickRate float64
+	clock    matchClock
 	window   int // TradeWindow in ticks
 	gap      int // KillTimeGap in ticks
 	players  []*player
 	byID     map[uint64]*player
-	// roundKills is the kills of each player in each round, by the number
-	// of the round, and clutchLog every clutch: for the Analysis.
+	// For the Analysis: roundKills is the kills of each player in each
+	// round, by the number of the round; clutchLog is every clutch, shotLog
+	// the shots in sight by round and player, fightLog every fight of the
+	// first shot and grenadeLog the damage of the grenades.
 	roundKills map[int]map[uint64]int
 	clutchLog  []ClutchPlay
+	shotLog    []RoundShots
+	fightLog   []Fight
+	grenadeLog []GrenadeHit
 }
 
 type player struct {

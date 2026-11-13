@@ -82,10 +82,10 @@ func fixture() (*demo.Match, []metrics.Player, faceit.Match, faceit.MatchStats) 
 			{ID: "id-a2", Nickname: "a2", Kills: 17, Deaths: 12, Assists: 5, Headshots: 8, Damage: 1658, ADR: 87.3},
 		}},
 	}}}}
-	// The ADR of 19 rounds, as metrics counts it.
+	// The damage of 19 rounds, as metrics counts it: what the ADR is made of.
 	var players []metrics.Player
 	for _, p := range m.Players {
-		players = append(players, metrics.Player{SteamID64: p.SteamID64, Team: p.Team, Match: metrics.Stats{ADR: float64(p.Damage) / 19}})
+		players = append(players, metrics.Player{SteamID64: p.SteamID64, Team: p.Team, Match: metrics.Stats{Damage: p.Damage, Rounds: 19}})
 	}
 	return m, players, details, stats
 }
@@ -105,9 +105,8 @@ func TestCompareFindsDifferences(t *testing.T) {
 	m, players, details, stats := fixture()
 	m.Players[2].Deaths = 18   // K/D/A: a mismatch
 	m.Players[1].Damage = 1612 // damage: only marked
-	players[1].Match.ADR = 1612.0 / 19
-	players[0].Match.ADR = 99.24 // the same to a tenth
-	m.Teams[0].FirstHalf = 7     // the halves: one mismatch for the line
+	players[1].Match.Damage = 1612
+	m.Teams[0].FirstHalf = 7 // the halves: one mismatch for the line
 	m.Teams[0].SecondHalf = 6
 	stats.Maps[0].Teams[0].Players = stats.Maps[0].Teams[0].Players[:1] // b2 is not in FACEIT
 	lines, mismatches := compare(m, players, details, stats)
@@ -155,18 +154,31 @@ func TestWithoutEvents(t *testing.T) {
 	}
 }
 
-func TestPairTenths(t *testing.T) {
+func TestPairADR(t *testing.T) {
 	for _, tc := range []struct {
-		ours, theirs float64
-		want         string
+		damage, rounds int
+		theirs         float64
+		want           string
 	}{
-		{1614.0 / 24, 67.2, "67.2/67.2"}, // 67.25: a half goes to the even tenth, as on FACEIT
-		{1805.0 / 28, 64.5, "64.5/64.5"}, // 64.46
-		{80.64, 80.6, "80.6/80.6"},
-		{80.66, 80.6, "80.7/80.6*"},
+		// A half goes to the even tenth, as on FACEIT, up or down.
+		{1614, 24, 67.2, "67.2/67.2"},    // 67.25
+		{1671, 20, 83.6, "83.6/83.6"},    // 83.55, which %.1f of a float64 shows as 83.5
+		{2069, 20, 103.4, "103.4/103.4"}, // 103.45, which %.1f shows as 103.5
+		{1805, 28, 64.5, "64.5/64.5"},    // 64.46
+		{1532, 19, 80.6, "80.6/80.6"},    // 80.63
+		{1533, 19, 80.6, "80.7/80.6*"},   // 80.68
+		{2000, 20, 100, "100.0/100.0"},   // a whole number
+		{59, 20, 3, "3.0/3.0"},           // 2.95: to the even 3.0
+		{0, 20, 0, "0.0/0.0"},            // no damage
+		{100, 0, 5, "0.0/5.0*"},          // no rounds
 	} {
-		if got := pairTenths(tc.ours, tc.theirs); got != tc.want {
-			t.Errorf("pairTenths(%v, %v) = %q, want %q", tc.ours, tc.theirs, got, tc.want)
+		if got := pairADR(tc.damage, tc.rounds, tc.theirs); got != tc.want {
+			t.Errorf("pairADR(%d, %d, %v) = %q, want %q", tc.damage, tc.rounds, tc.theirs, got, tc.want)
+		}
+	}
+	for _, tc := range [][3]int{{1614, 24, 672}, {1671, 20, 836}, {2069, 20, 1034}, {1, 3, 3}, {2, 3, 7}, {5, 100, 0}, {15, 100, 2}, {25, 100, 2}, {35, 100, 4}} {
+		if got := adrTenths(tc[0], tc[1]); got != tc[2] {
+			t.Errorf("adrTenths(%d, %d) = %d, want %d", tc[0], tc[1], got, tc[2])
 		}
 	}
 }

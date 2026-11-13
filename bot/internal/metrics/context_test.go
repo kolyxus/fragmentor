@@ -194,6 +194,13 @@ func TestTradeChances(t *testing.T) {
 	}
 }
 
+// clockAt is what the clock of a made-up round shows at tick before the
+// bomb is planted: the round lasts 1:55, and its freeze time ends at tick 0.
+func clockAt(tick int) float64 { return defaultRoundTime - float64(tick)/testTickRate }
+
+// bombAt is what the clock shows at tick once the bomb was planted at plant.
+func bombAt(plant, tick int) float64 { return defaultBombTime - float64(tick-plant)/testTickRate }
+
 // throw adds a grenade with the ID to the round.
 func (r *round) throw(id int, thrower *demo.Ref, weapon string, after bool) {
 	r.grenades = append(r.grenades, demo.Grenade{ID: id, Tick: 10 * id, AfterRoundEnd: after, Thrower: *thrower, Weapon: weapon})
@@ -228,11 +235,11 @@ func TestGrenadesThrown(t *testing.T) {
 	a := Analyze(&g.m)
 
 	want := []Flashbang{
-		{Grenade: 1, Round: 1, Tick: 10, Thrower: 1, Enemies: 1},
-		{Grenade: 2, Round: 1, Tick: 20, Thrower: 1, Teammates: 1, Empty: true, TeamFlash: true},
-		{Grenade: 3, Round: 1, Tick: 30, Thrower: 2, Empty: true},
-		{Grenade: 4, Round: 1, Tick: 40, Thrower: 4, Enemies: 1, Teammates: 1, TeamFlash: true},
-		{Grenade: 12, Round: 1, Tick: 120, Thrower: 3, Empty: true},
+		{Grenade: 1, Round: 1, Tick: 10, Clock: clockAt(10), Thrower: 1, Enemies: 1},
+		{Grenade: 2, Round: 1, Tick: 20, Clock: clockAt(20), Thrower: 1, Teammates: 1, Empty: true, TeamFlash: true},
+		{Grenade: 3, Round: 1, Tick: 30, Clock: clockAt(30), Thrower: 2, Empty: true},
+		{Grenade: 4, Round: 1, Tick: 40, Clock: clockAt(40), Thrower: 4, Enemies: 1, Teammates: 1, TeamFlash: true},
+		{Grenade: 12, Round: 1, Tick: 120, Clock: clockAt(120), Thrower: 3, Empty: true},
 	}
 	if !slices.Equal(a.Flashbangs, want) {
 		t.Errorf("flashbangs =\n%+v\nwant\n%+v", a.Flashbangs, want)
