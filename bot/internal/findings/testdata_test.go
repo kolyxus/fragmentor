@@ -58,8 +58,8 @@ const (
 	// rest: the heaviest finding of the demos weighs 12.
 	maxWeight = 25.0
 	// The median weight of a rule that fired medianFrom times or more lies
-	// between minMedian and maxMedian: the medians of the demos are 1.9 to
-	// 3.5.
+	// between minMedian and maxMedian: the medians of the demos are 1.95
+	// to 3.42.
 	medianFrom = 5
 	minMedian  = 1.0
 	maxMedian  = 5.0
