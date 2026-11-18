@@ -3,49 +3,14 @@ package findings
 import (
 	"context"
 	"math"
-	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
+	"github.com/kolyxus/fragmentor/bot/internal/testdemos"
 )
-
-// testDemos returns the demos in bot/testdata and in its folders, the *.zst
-// files. They are not in git: the test skips without them, and with -short,
-// as each takes seconds.
-func testDemos(t *testing.T) []string {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("parsing real demos takes seconds")
-	}
-	var files []string
-	for _, pattern := range []string{"*.zst", filepath.Join("*", "*.zst")} {
-		found, err := filepath.Glob(filepath.Join("..", "..", "testdata", pattern))
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, found...)
-	}
-	if len(files) == 0 {
-		t.Skip("no demos in bot/testdata")
-	}
-	return files
-}
-
-// demoName names the subtest of a demo: its folder in testdata, if any, and
-// the start of its name.
-func demoName(file string) string {
-	name := filepath.Base(file)
-	if len(name) > 10 {
-		name = name[:10]
-	}
-	if dir := filepath.Base(filepath.Dir(file)); dir != "testdata" {
-		name = dir + "/" + name
-	}
-	return name
-}
 
 // The bounds of the rules over the player-matches of bot/testdata, see
 // docs/FINDINGS.md, "Проверка правил": no rule fires for everybody or, unless
@@ -73,18 +38,19 @@ const (
 )
 
 // TestRulesOnTestdata runs the rules on every player of every demo in
-// bot/testdata, first without a past and then with the other demos of the
-// same player as his past, as go run ./cmd/parsedemo -findings does. It
-// checks every report, the measures against the metrics they are counted
-// from, and the bounds above.
+// bot/testdata, see internal/testdemos, first without a past and then with
+// the other demos of the same player as his past, as
+// go run ./cmd/parsedemo -findings does. It checks every report, the
+// measures against the metrics they are counted from, and the bounds above:
+// with -race, a few demos, short of minPlayerMatches, the bounds are not.
 func TestRulesOnTestdata(t *testing.T) {
-	files := testDemos(t)
+	files := testdemos.Files(t)
 	analyses := make([]*metrics.Analysis, len(files))
 	// The demos are parsed in parallel, as each takes seconds; the group
 	// ends when all of them are.
 	t.Run("parse", func(t *testing.T) {
 		for i, file := range files {
-			t.Run(demoName(file), func(t *testing.T) {
+			t.Run(testdemos.Name(file), func(t *testing.T) {
 				t.Parallel()
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 				defer cancel()
@@ -104,11 +70,11 @@ func TestRulesOnTestdata(t *testing.T) {
 	for i, a := range analyses {
 		first[i] = Analyze(a, nil)
 		if len(first[i]) != len(a.Players) {
-			t.Fatalf("%s: %d reports of %d players", demoName(files[i]), len(first[i]), len(a.Players))
+			t.Fatalf("%s: %d reports of %d players", testdemos.Name(files[i]), len(first[i]), len(a.Players))
 		}
 		for k, r := range first[i] {
-			checkMeasures(t, demoName(files[i]), k, a.Players[k].Match, r)
-			checkReport(t, demoName(files[i]), k, a, r, false)
+			checkMeasures(t, testdemos.Name(files[i]), k, a.Players[k].Match, r)
+			checkReport(t, testdemos.Name(files[i]), k, a, r, false)
 		}
 	}
 
@@ -131,7 +97,7 @@ func TestRulesOnTestdata(t *testing.T) {
 			}
 		}
 		for k, r := range Analyze(a, past) {
-			checkReport(t, demoName(files[i]), k, a, r, true)
+			checkReport(t, testdemos.Name(files[i]), k, a, r, true)
 			total++
 			for _, f := range r.Findings {
 				firedBy[f.Rule]++

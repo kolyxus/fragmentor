@@ -6,6 +6,7 @@ require (
 	github.com/go-telegram/bot v1.27.0
 	github.com/klauspost/compress v1.20.3
 	github.com/markus-wa/demoinfocs-golang/v6 v6.0.0-rc.1
+	go.yaml.in/yaml/v3 v3.0.6
 	modernc.org/sqlite v1.61.0
 )
 

@@ -23,10 +23,9 @@ type FaceitAccount struct {
 // linked before. A user the bot has not seen is created off the waitlist; a
 // known one gets the username and language refreshed, as /start does.
 //
-// The parsed matches keep with an ID only the players who use the bot (see
-// SaveMatch), so the account replaced loses its rows in them, unless
-// another user has it linked too. Its reference samples stay: they are
-// anonymous.
+// The parsed matches keep every player, but the facts of reviews only for
+// the users of the bot (see SaveAnalysis): the SteamID64 replaced loses its
+// facts, unless another user has it linked too. Its rows stay.
 func (s *Store) LinkFaceitAccount(ctx context.Context, u User, acc FaceitAccount, now time.Time) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -34,8 +33,9 @@ func (s *Store) LinkFaceitAccount(ctx context.Context, u User, acc FaceitAccount
 	}
 	defer rollback(tx, &err)
 
-	var prev sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT player_id FROM faceit_accounts WHERE telegram_id = ?`, u.TelegramID).Scan(&prev)
+	var prev, prevSteam sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT player_id, steam_id64 FROM faceit_accounts WHERE telegram_id = ?`, u.TelegramID).
+		Scan(&prev, &prevSteam)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("select faceit account: %w", err)
 	}
@@ -56,11 +56,13 @@ func (s *Store) LinkFaceitAccount(ctx context.Context, u User, acc FaceitAccount
 	if err != nil {
 		return fmt.Errorf("upsert faceit account: %w", err)
 	}
-	if prev.Valid && prev.String != acc.PlayerID {
-		_, err = tx.ExecContext(ctx, `DELETE FROM match_players WHERE player_id = ?
-			AND NOT EXISTS (SELECT 1 FROM faceit_accounts WHERE player_id = ?)`, prev.String, prev.String)
+	// The facts belong to a SteamID64: the one replaced loses them, whether
+	// the account is another or the same one with another SteamID64.
+	if prev.Valid && prevSteam.String != acc.SteamID64 {
+		_, err = tx.ExecContext(ctx, `UPDATE match_players SET facts = NULL, facts_version = NULL WHERE steam_id64 = ?
+			AND NOT EXISTS (SELECT 1 FROM faceit_accounts WHERE steam_id64 = ?)`, prevSteam.String, prevSteam.String)
 		if err != nil {
-			return fmt.Errorf("delete match players of the account replaced: %w", err)
+			return fmt.Errorf("drop the facts of the account replaced: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

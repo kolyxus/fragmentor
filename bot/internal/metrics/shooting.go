@@ -136,7 +136,13 @@ func (c *counter) shooting(r demo.Round, e events, side func(*player) *Stats) {
 			fights = append(fights, f)
 		}
 	}
-	// The fights come out of a map: put them in the order of the round.
+	// The fights come out of a map: put them in the order of the round, and
+	// those of one tick in the order of the players, which their IDs do not
+	// tell: the journal has the seats for them.
+	order := make(map[uint64]int, len(c.players))
+	for i, p := range c.players {
+		order[p.id] = i
+	}
 	slices.SortFunc(fights, func(a, b Fight) int {
 		hit := func(f Fight) int {
 			if f.Hit {
@@ -144,7 +150,7 @@ func (c *counter) shooting(r demo.Round, e events, side func(*player) *Stats) {
 			}
 			return 0
 		}
-		return cmp.Or(cmp.Compare(a.Tick, b.Tick), cmp.Compare(a.Player, b.Player), cmp.Compare(hit(a), hit(b)))
+		return cmp.Or(cmp.Compare(a.Tick, b.Tick), cmp.Compare(order[a.Player], order[b.Player]), cmp.Compare(hit(a), hit(b)))
 	})
 	c.fightLog = append(c.fightLog, fights...)
 }

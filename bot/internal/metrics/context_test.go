@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -243,6 +244,22 @@ func TestGrenadesThrown(t *testing.T) {
 	}
 	if !slices.Equal(a.Flashbangs, want) {
 		t.Errorf("flashbangs =\n%+v\nwant\n%+v", a.Flashbangs, want)
+	}
+	// Every grenade thrown in the round, those after its end and of a bot no
+	// player controls aside: the flashbangs, a smoke, an HE, two of fire, a
+	// decoy, and the flashbang of player 3 in a bot.
+	var throws []string
+	for _, th := range a.Throws {
+		throws = append(throws, fmt.Sprintf("%d:%d:%s", th.Grenade, th.Thrower, th.Weapon))
+		if th.Round != 1 || th.Tick != 10*th.Grenade || !near(th.Clock, clockAt(th.Tick)) || th.Planted {
+			t.Errorf("throw %+v", th)
+		}
+	}
+	wantThrows := []string{"1:1:Flashbang", "2:1:Flashbang", "3:2:Flashbang", "4:4:Flashbang",
+		"5:1:" + demo.SmokeGrenade, "6:1:" + demo.HEGrenade, "7:1:" + demo.Molotov, "8:1:" + demo.Incendiary, "9:1:" + demo.Decoy,
+		"12:3:Flashbang"}
+	if !slices.Equal(throws, wantThrows) {
+		t.Errorf("throws =\n%v\nwant\n%v", throws, wantThrows)
 	}
 	ps := g.compute(t)
 	for _, tc := range []struct {

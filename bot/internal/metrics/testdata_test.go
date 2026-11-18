@@ -2,57 +2,24 @@ package metrics
 
 import (
 	"context"
-	"path/filepath"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
+	"github.com/kolyxus/fragmentor/bot/internal/testdemos"
 )
 
-// testDemos returns the demos in bot/testdata and in its folders, like
-// 7-8lvl/ for the matches of other levels: the *.zst files. They are not in
-// git: the test skips without them, and with -short, as each takes seconds.
-func testDemos(t *testing.T) []string {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("parsing real demos takes seconds")
-	}
-	var files []string
-	for _, pattern := range []string{"*.zst", filepath.Join("*", "*.zst")} {
-		found, err := filepath.Glob(filepath.Join("..", "..", "testdata", pattern))
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, found...)
-	}
-	if len(files) == 0 {
-		t.Skip("no demos in bot/testdata")
-	}
-	return files
-}
-
-// demoName names the subtest of a demo: its folder in testdata, if any, and
-// the start of its name.
-func demoName(file string) string {
-	name := filepath.Base(file)
-	if len(name) > 10 {
-		name = name[:10]
-	}
-	if dir := filepath.Base(filepath.Dir(file)); dir != "testdata" {
-		name = dir + "/" + name
-	}
-	return name
-}
-
-// TestComputeTestdata computes the metrics of the demos in bot/testdata and
-// checks what holds for any match: the totals as FACEIT counts them are
-// the summary's, which go run ./cmd/parsedemo -faceit checks against
-// FACEIT, the coaching metrics stay within their bounds, and the events in
-// their context add up to the metrics. The demos are parsed in parallel, as
-// each takes seconds.
+// TestComputeTestdata computes the metrics of the demos in bot/testdata (see
+// internal/testdemos) and checks what holds for any match: the totals as
+// FACEIT counts them are the summary's, which go run ./cmd/parsedemo -faceit
+// checks against FACEIT, the coaching metrics stay within their bounds, and
+// the events in their context add up to the metrics. The demos are parsed in
+// parallel, as each takes seconds.
 func TestComputeTestdata(t *testing.T) {
-	for _, file := range testDemos(t) {
-		t.Run(demoName(file), func(t *testing.T) {
+	for _, file := range testdemos.Files(t) {
+		t.Run(testdemos.Name(file), func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
@@ -63,8 +30,86 @@ func TestComputeTestdata(t *testing.T) {
 			a := Analyze(m)
 			checkMatch(t, m, a.Players)
 			checkAnalysis(t, m, a)
+			// The journal keeps the anonymous match, which the metrics are
+			// counted again from: they are the same, the seats for the IDs.
+			anon, seats := demo.Anonymize(m)
+			if again := fromSeats(Analyze(anon), seats); !reflect.DeepEqual(again, a) {
+				t.Errorf("the metrics of the anonymous match differ from those of the match: %s", diffAnalysis(again, a))
+			}
 		})
 	}
+}
+
+// diffAnalysis names the first field in which a and b differ, and the first
+// element of it.
+func diffAnalysis(a, b *Analysis) string {
+	va, vb := reflect.ValueOf(*a), reflect.ValueOf(*b)
+	for i := range va.NumField() {
+		fa, fb := va.Field(i), vb.Field(i)
+		if reflect.DeepEqual(fa.Interface(), fb.Interface()) {
+			continue
+		}
+		name := va.Type().Field(i).Name
+		if fa.Kind() != reflect.Slice {
+			return fmt.Sprintf("%s: %v and %v", name, fa.Interface(), fb.Interface())
+		}
+		if fa.Len() != fb.Len() {
+			return fmt.Sprintf("%s: %d and %d", name, fa.Len(), fb.Len())
+		}
+		for j := range fa.Len() {
+			if !reflect.DeepEqual(fa.Index(j).Interface(), fb.Index(j).Interface()) {
+				return fmt.Sprintf("%s[%d]: %+v and %+v", name, j, fa.Index(j).Interface(), fb.Index(j).Interface())
+			}
+		}
+	}
+	return "nothing"
+}
+
+// fromSeats puts the SteamIDs of seats, seats[i] for seat i+1, in place of
+// the seats in a, the analysis of an anonymous match: see demo.Anonymize.
+func fromSeats(a *Analysis, seats []uint64) *Analysis {
+	id := func(seat uint64) uint64 {
+		if seat == 0 || seat > uint64(len(seats)) {
+			return seat
+		}
+		return seats[seat-1]
+	}
+	for i := range a.Players {
+		a.Players[i].SteamID64 = id(a.Players[i].SteamID64)
+	}
+	for i := range a.Rounds {
+		kills := make(map[uint64]int, len(a.Rounds[i].Kills))
+		for seat, n := range a.Rounds[i].Kills {
+			kills[id(seat)] = n
+		}
+		a.Rounds[i].Kills = kills
+	}
+	for i := range a.Deaths {
+		d := &a.Deaths[i]
+		d.Victim, d.Killer, d.Assister = id(d.Victim), id(d.Killer), id(d.Assister)
+	}
+	for i := range a.Throws {
+		a.Throws[i].Thrower = id(a.Throws[i].Thrower)
+	}
+	for i := range a.Flashbangs {
+		a.Flashbangs[i].Thrower = id(a.Flashbangs[i].Thrower)
+	}
+	for i := range a.Chances {
+		a.Chances[i].Player = id(a.Chances[i].Player)
+	}
+	for i := range a.Clutches {
+		a.Clutches[i].Player = id(a.Clutches[i].Player)
+	}
+	for i := range a.RoundShots {
+		a.RoundShots[i].Player = id(a.RoundShots[i].Player)
+	}
+	for i := range a.Fights {
+		a.Fights[i].Player = id(a.Fights[i].Player)
+	}
+	for i := range a.GrenadeHits {
+		a.GrenadeHits[i].Player = id(a.GrenadeHits[i].Player)
+	}
+	return a
 }
 
 func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
@@ -343,6 +388,17 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 			s.clutchWins++
 		}
 	}
+	thrown := make(map[uint64]int)
+	for i, th := range a.Throws {
+		r := m.Rounds[th.Round-1]
+		// A grenade may be thrown in the freeze time, before the clock runs.
+		if got[th.Thrower] == nil || th.Weapon == "" || th.Tick >= r.FreezeEndTick && !moment(th.Round, th.Tick, th.Clock, th.Planted) ||
+			i > 0 && a.Throws[i-1].Tick > th.Tick {
+			t.Errorf("throw %d = %+v", i, th)
+			continue
+		}
+		thrown[th.Thrower]++
+	}
 	flashAssists := make(map[uint64]int)
 	for i, d := range a.Deaths {
 		if d.FlashAssist && d.Assister == 0 || d.Assister != 0 && (got[d.Assister] == nil || d.Assister == d.Victim || d.Assister == d.Killer) {
@@ -369,6 +425,9 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 		for _, cl := range st.Clutches {
 			want.clutches += cl.Attempts
 			want.clutchWins += cl.Wins
+		}
+		if n := st.FlashesThrown + st.SmokesThrown + st.HEGrenadesThrown + st.FireGrenadesThrown + st.DecoysThrown; thrown[p.SteamID64] != n {
+			t.Errorf("player %d: %d throws, the metrics %d grenades thrown", i, thrown[p.SteamID64], n)
 		}
 		// An assist is a flash assist or not, and FACEIT counts both.
 		if flashAssists[p.SteamID64] > st.Assists {

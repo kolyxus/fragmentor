@@ -1,8 +1,10 @@
-// Package analysis turns the demo links users send into metrics in the
-// database. It checks a link against FACEIT and the queue, keeps the queue
-// of jobs in the database and parses the demos in workers of the process,
-// Workers at a time. A demo goes from the network through the zstd decoder
-// straight into the parser: it never touches the disk.
+// Package analysis turns the demo links users send into the journals of
+// their matches, the metrics of every player and the facts of the reviews of
+// the users of the bot, in the database. It checks a link against FACEIT and
+// the queue, keeps the queue of jobs in the database and parses the demos in
+// workers of the process, Workers at a time. A demo goes from the network
+// through the zstd decoder straight into the parser: it never touches the
+// disk, and only its journal is kept, see count.go.
 //
 // A signed link lives for about five minutes, and the download must start
 // before it runs out, so the queue knows how long it is: a link that would
@@ -16,6 +18,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
@@ -103,8 +106,12 @@ type Store interface {
 	RequeueJob(ctx context.Context, id int64) error
 	RecoverJobs(ctx context.Context, maxAttempts int, now time.Time) ([]int64, error)
 	SetJobMessage(ctx context.Context, id int64, messageID int) error
-	MatchResult(ctx context.Context, matchID, playerID string) (storage.MatchResult, error)
-	SaveMatch(ctx context.Context, m storage.ParsedMatch, players []storage.PlayerMetrics, now time.Time) error
+	MatchResult(ctx context.Context, matchID, steamID64 string) (storage.MatchResult, error)
+	SaveAnalysis(ctx context.Context, m storage.ParsedMatch, j storage.Journal, players []storage.MatchPlayer, now time.Time) error
+	SaveRecount(ctx context.Context, matchID string, metricsVersion int, players []storage.MatchPlayer) error
+	LoadAnalysis(ctx context.Context, matchID string) (storage.ParsedMatch, storage.Journal, []storage.MatchPlayer, error)
+	PastFacts(ctx context.Context, steamID64, matchID string, before time.Time, metricsVersion, factsVersion, limit int) ([][]byte, error)
+	StaleMatches(ctx context.Context, journalVersion, metricsVersion, factsVersion, limit int) ([]string, error)
 }
 
 // Faceit is the FACEIT Data API the queue needs.
@@ -128,6 +135,10 @@ type Queue struct {
 	durations *durations
 	// wake tells idle workers that a job may be waiting.
 	wake chan struct{}
+	// recounting lets one worker at a time count matches again from their
+	// journals, and recountFailed, under it, is the matches that failed.
+	recounting    sync.Mutex
+	recountFailed map[string]bool
 
 	// Tests replace these.
 	now        func() time.Time
@@ -145,7 +156,9 @@ func New(store Store, fc Faceit, log *slog.Logger) *Queue {
 		download:  newDownloader(),
 		durations: &durations{},
 		wake:      make(chan struct{}, Workers),
-		now:       time.Now,
+		// The matches that failed to be counted again: by ID, in memory.
+		recountFailed: make(map[string]bool),
+		now:           time.Now,
 		parse: func(ctx context.Context, r io.Reader) (*demo.Match, error) {
 			return demo.Parse(ctx, r, demo.Options{})
 		},

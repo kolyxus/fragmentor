@@ -140,4 +140,6 @@ Level %d · %d ELO`,
 The bot is in development. Start it to join the beta waitlist.`,
 
 	ShortDescription: "AI coach for CS2. Reads the demos of your FACEIT matches and explains where you lose rounds.",
+
+	Review: reviewEN,
 }

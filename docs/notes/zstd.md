@@ -41,6 +41,25 @@ defer dec.Close() // обязательно: отпускает буферы (и
 - У демок FACEIT в заголовке есть размер распакованного (Frame Content Size): 243 939 176 и 355 423 009 байт,
   окно 2 МиБ, один кадр.
 
+## Журнал матча: сжатие в памяти (шаг 8а, 2026-11-16)
+
+`bot/internal/demo/journal.go` сжимает JSON журнала целиком, не потоком:
+
+```go
+enc, _ := zstd.NewWriter(nil, zstd.WithEncoderConcurrency(1), zstd.WithWindowSize(2<<20))
+b := enc.EncodeAll(raw, nil)        // можно звать из нескольких горутин, каждый вызов — в своей
+
+dec, _ := zstd.NewReader(nil, zstd.WithDecoderConcurrency(1), zstd.WithDecoderMaxMemory(64<<20))
+raw, err := dec.DecodeAll(b, nil)   // для DecodeAll MaxMemory — предел распакованного
+```
+
+- Кодировщик и декодер — по одному на процесс (`sync.OnceValues`): их буферы остаются в памяти насовсем.
+- **Окно кодировщика.** По умолчанию оно 8 МиБ, и кодировщик держит 17 МиБ живой памяти после первого сжатия.
+  С `WithWindowSize(2 << 20)` — 5 МиБ, а журнал (до 1,2 МиБ JSON в testdata) сжимается так же: 128 КиБ из 1192 КиБ
+  за 8 мс. `WithLowerEncoderMem(true)` даёт 3 МиБ, но сжатие медленнее (12 мс) — не берём.
+- Для `DecodeAll` `WithDecoderMaxMemory` ограничивает весь распакованный результат, а не только окно, как у потока:
+  журнал больше 64 МиБ — ошибка.
+
 ## Ссылки
 
 - https://github.com/klauspost/compress/tree/master/zstd — README, раздел «Decompressor»

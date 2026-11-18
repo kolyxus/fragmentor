@@ -106,6 +106,9 @@ type Messages struct {
 	CommandHelp      string // /help in the command menu
 	Description      string // shown in an empty chat with the bot
 	ShortDescription string // shown on the bot profile and in shared links
+
+	// Review is the texts of the template review of a match.
+	Review ReviewTexts
 }
 
 // For returns the texts in l, English for an unknown language.

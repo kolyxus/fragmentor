@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
+	"github.com/kolyxus/fragmentor/bot/internal/findings"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
@@ -40,23 +41,31 @@ func (f *fixture) count(table string) int {
 	return n
 }
 
-// keptPlayers returns the FACEIT player IDs kept with the match, in order.
-func (f *fixture) keptPlayers(matchID string) []string {
+// withFacts returns the seats of the match whose players have facts kept,
+// of the current version.
+func (f *fixture) withFacts(matchID string) []int {
 	f.t.Helper()
-	rows, err := f.db().Query(`SELECT player_id FROM match_players WHERE match_id = ? ORDER BY player_id`, matchID)
+	rows, err := f.db().Query(`SELECT seat FROM match_players WHERE match_id = ? AND facts IS NOT NULL AND facts_version = ? ORDER BY seat`,
+		matchID, findings.FactsVersion)
 	if err != nil {
 		f.t.Fatal(err)
 	}
 	defer rows.Close()
-	var ids []string
+	var seats []int
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var s int
+		if err := rows.Scan(&s); err != nil {
 			f.t.Fatal(err)
 		}
-		ids = append(ids, id)
+		seats = append(seats, s)
 	}
-	return ids
+	return seats
+}
+
+// done is the match of a job done for the user who played seat.
+func done(seat, team int) storage.MatchResult {
+	return storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: metrics.Version, JournalVersion: demo.JournalVersion,
+		Team: team, Seat: seat, FactsVersion: findings.FactsVersion}
 }
 
 func TestJobDone(t *testing.T) {
@@ -75,11 +84,11 @@ func TestJobDone(t *testing.T) {
 	}
 
 	// The match, as the user saw it.
-	res, err := f.store.MatchResult(f.ctx, testMatchID, playerIDOf(1))
+	res, err := f.store.MatchResult(f.ctx, testMatchID, strconv.FormatUint(steamOf(1), 10))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := (storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: metrics.Version, Team: 0}); res != want {
+	if want := done(1, 0); res != want {
 		t.Errorf("MatchResult() = %+v, want %+v", res, want)
 	}
 	var started int64
@@ -87,45 +96,65 @@ func TestJobDone(t *testing.T) {
 		t.Errorf("started_at = %d, %v; want the start of the match on FACEIT", started, err)
 	}
 
-	// With IDs, only the players who use the bot: 1 and 6.
-	if got, want := f.keptPlayers(testMatchID), []string{playerIDOf(1), playerIDOf(6)}; !slices.Equal(got, want) {
-		t.Errorf("match_players = %v, want %v", got, want)
-	}
-	var steam, stored string
-	var level, team int
-	err = f.db().QueryRow(`SELECT steam_id64, skill_level, team, metrics FROM match_players WHERE player_id = ?`, playerIDOf(1)).
-		Scan(&steam, &level, &team, &stored)
+	// Every player, at his seat, with the level and the ID of the roster;
+	// the facts only of the players who use the bot, 1 and 6.
+	m, j, players, err := f.store.LoadAnalysis(f.ctx, testMatchID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if steam != strconv.FormatUint(steamOf(1), 10) || level != levelOf(1) || team != 0 {
-		t.Errorf("player 1 kept as %s, level %d, team %d", steam, level, team)
+	if len(players) != 10 || m.MetricsVersion != metrics.Version {
+		t.Fatalf("%d players of metrics %d kept", len(players), m.MetricsVersion)
 	}
-	// The metrics are those of the formulas, without IDs.
-	want := metrics.Compute(testDemo())[0]
-	var m storedMetrics
-	if err := json.Unmarshal([]byte(stored), &m); err != nil {
+	computed := metrics.Compute(testDemo())
+	for i, p := range players {
+		if p.Seat != i+1 || p.SteamID64 != strconv.FormatUint(steamOf(i+1), 10) || p.PlayerID != playerIDOf(i+1) ||
+			p.SkillLevel != levelOf(i+1) || p.Team != i/5 {
+			t.Errorf("player %d kept as %+v", i+1, p)
+		}
+		// The metrics are those of the formulas, without IDs.
+		var stored storedMetrics
+		if err := json.Unmarshal(p.Metrics, &stored); err != nil {
+			t.Fatal(err)
+		}
+		if stored.Match != computed[i].Match || stored.T != computed[i].T || stored.CT != computed[i].CT {
+			t.Errorf("player %d: stored metrics differ from metrics.Compute:\n%s", i+1, p.Metrics)
+		}
+		if strings.Contains(string(p.Metrics), strconv.FormatUint(steamOf(i+1), 10)) || strings.Contains(string(p.Metrics), "steam_id64") {
+			t.Errorf("stored metrics hold the SteamID: %s", p.Metrics)
+		}
+	}
+	if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6}) {
+		t.Errorf("facts kept for seats %v, want 1 and 6", got)
+	}
+	var facts findings.Facts
+	if err := json.Unmarshal(players[0].Facts, &facts); err != nil {
 		t.Fatal(err)
 	}
-	if m.Match != want.Match || m.T != want.T || m.CT != want.CT {
-		t.Errorf("stored metrics differ from metrics.Compute:\n%s", stored)
-	}
-	if m.Match.Kills != 1 || m.Match.HeadshotKills != 1 {
-		t.Errorf("player 1: %d kills, %d headshots; want 1 and 1", m.Match.Kills, m.Match.HeadshotKills)
-	}
-	if strings.Contains(stored, "steam_id64") || strings.Contains(stored, strconv.FormatUint(steamOf(1), 10)) {
-		t.Errorf("stored metrics hold the SteamID: %s", stored)
+	if facts.Version != findings.FactsVersion || facts.Match.Map != "de_mirage" || facts.Player.Kills != 1 || facts.Player.Level != levelOf(1) ||
+		len(facts.Events.Kills) != 1 {
+		t.Errorf("facts of player 1 = %+v", facts)
 	}
 
-	// Every player gives an anonymous sample with the level.
-	if n := f.count("reference_samples"); n != 10 {
-		t.Errorf("%d reference samples, want 10", n)
+	// The journal is the anonymous match: seats for the SteamIDs, no names.
+	if j.Version != demo.JournalVersion {
+		t.Errorf("journal of version %d", j.Version)
 	}
-	var levels, maps int
-	err = f.db().QueryRow(`SELECT COUNT(DISTINCT skill_level), COUNT(DISTINCT map) FROM reference_samples WHERE metrics_version = ?`, metrics.Version).
-		Scan(&levels, &maps)
-	if err != nil || levels != 10 || maps != 1 {
-		t.Errorf("reference samples: %d levels, %d maps, %v; want 10 and 1", levels, maps, err)
+	journal, err := demo.DecodeJournal(j.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	anon, _ := demo.Anonymize(testDemo())
+	raw, _ := json.Marshal(journal)
+	if want, _ := json.Marshal(anon); string(raw) != string(want) {
+		t.Errorf("journal = %s\nwant %s", raw, want)
+	}
+	for _, secret := range []string{strconv.FormatUint(steamOf(1), 10), `"p1"`, "team_p1"} {
+		if strings.Contains(string(raw), secret) || strings.Contains(string(players[0].Facts), secret) {
+			t.Errorf("the journal or the facts hold %s", secret)
+		}
+	}
+	if !strings.Contains(f.logText(), "journal_kib=") {
+		t.Error("the log does not tell the size of the journal")
 	}
 	f.checkLog()
 }
@@ -154,18 +183,130 @@ func TestSecondJobOfMatchNotDownloaded(t *testing.T) {
 	}
 }
 
-func TestNewUserParsesAgain(t *testing.T) {
+func TestNewUserFromTheJournal(t *testing.T) {
 	f := newFixture(t)
 	f.accept(userP1, testMatchID)
 	f.step()
 
-	// Player 7 starts using the bot after the match was parsed: the match
-	// is parsed again for them, and the samples are not added again.
-	const userP7 = 45
+	// Player 7 starts using the bot after the match was parsed: he is in it
+	// by his SteamID64, and his facts are counted from the journal at once,
+	// with no link to download.
+	const userP7, userP8 = 45, 46
 	f.link(userP7, 7)
 	out := f.submit(userP7, testMatchID)
-	if out.Verdict != Accepted {
-		t.Fatalf("Submit() of player 7 = %v, want Accepted", out.Verdict)
+	if out.Verdict != Analyzed || out.Result.Team != 1 || out.Result.Seat != 7 {
+		t.Fatalf("Submit() of player 7 = %+v, want Analyzed, team 1", out)
+	}
+	if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6, 7}) {
+		t.Errorf("facts for seats %v, want 1, 6 and 7", got)
+	}
+	// Player 8 links his account and sends nothing: the idle worker counts
+	// his facts from the journal.
+	f.link(userP8, 8)
+	if !f.q.recountStale(f.ctx) {
+		t.Error("the idle worker counted nothing again")
+	}
+	if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6, 7, 8}) {
+		t.Errorf("facts for seats %v, want 1, 6, 7 and 8", got)
+	}
+	if f.q.recountStale(f.ctx) {
+		t.Error("the idle worker counted again a match up to date")
+	}
+	if n := f.srv.requests.Load(); n != 1 {
+		t.Errorf("%d downloads, want the 1 of the first parse", n)
+	}
+	if !strings.Contains(f.logText(), "match counted again") {
+		t.Error("the log does not tell of the recount")
+	}
+	f.checkLog()
+}
+
+func TestOldFormulasCountedAgain(t *testing.T) {
+	f := newFixture(t)
+	f.accept(userP1, testMatchID)
+	second := f.accept(userP6, testMatchID)
+	f.step()
+	old := func() {
+		t.Helper()
+		for _, q := range []string{
+			`UPDATE matches SET metrics_version = metrics_version - 1`,
+			`UPDATE match_players SET metrics = '{}'`,
+			`UPDATE match_players SET facts = '{}', facts_version = facts_version - 1 WHERE facts IS NOT NULL`,
+		} {
+			if _, err := f.db().Exec(q); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	current := func(what string) {
+		t.Helper()
+		for i, steam := range map[int]uint64{1: steamOf(1), 6: steamOf(6)} {
+			if res, err := f.store.MatchResult(f.ctx, testMatchID, strconv.FormatUint(steam, 10)); err != nil || res != done(i, (i-1)/5) {
+				t.Errorf("%s: MatchResult() of player %d = %+v, %v; want the current versions", what, i, res, err)
+			}
+		}
+		_, _, players, err := f.store.LoadAnalysis(f.ctx, testMatchID)
+		if err != nil || len(players) != 10 || string(players[9].Metrics) == "{}" {
+			t.Errorf("%s: the metrics of every player are not counted again: %v", what, err)
+		}
+		if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6}) {
+			t.Errorf("%s: facts for seats %v, want 1 and 6", what, got)
+		}
+	}
+
+	// New formulas: the job of player 6, queued meanwhile, counts the match
+	// again from the journal, with no download.
+	old()
+	if got := f.step(); got.ID != second.ID || got.Status != storage.JobDone {
+		t.Fatalf("job = %+v, want done", got)
+	}
+	current("the job")
+	// A request of a user counts his match again at once.
+	old()
+	if out := f.submit(userP1, testMatchID); out.Verdict != Analyzed {
+		t.Fatalf("Submit() of a match of old formulas = %v, want Analyzed", out.Verdict)
+	}
+	current("the request")
+	// Old formulas alone, the facts of the current version, too.
+	if _, err := f.db().Exec(`UPDATE matches SET metrics_version = metrics_version - 1`); err != nil {
+		t.Fatal(err)
+	}
+	if out := f.submit(userP1, testMatchID); out.Verdict != Analyzed {
+		t.Fatalf("Submit() of a match of old formulas = %v, want Analyzed", out.Verdict)
+	}
+	current("old formulas alone")
+	// With nobody asking, the idle worker does.
+	old()
+	if !f.q.recountStale(f.ctx) {
+		t.Error("the idle worker counted nothing again")
+	}
+	current("the idle worker")
+	if n := f.srv.requests.Load(); n != 1 {
+		t.Errorf("%d downloads, want the 1 of the first parse", n)
+	}
+	f.checkLog()
+}
+
+func TestOldJournalParsedAgain(t *testing.T) {
+	f := newFixture(t)
+	f.accept(userP1, testMatchID)
+	f.step()
+	// The journal is of an older version: the match needs its demo again,
+	// and the idle worker cannot count it.
+	if _, err := f.db().Exec(`UPDATE match_journals SET version = version - 1`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db().Exec(`UPDATE matches SET metrics_version = metrics_version - 1`); err != nil {
+		t.Fatal(err)
+	}
+	if f.q.recountStale(f.ctx) {
+		t.Error("a match of an old journal was counted again")
+	}
+	if err := f.q.recount(f.ctx, testMatchID); !errors.Is(err, errOldJournal) {
+		t.Errorf("recount() of a match of an old journal: %v, want errOldJournal", err)
+	}
+	if out := f.submit(userP1, testMatchID); out.Verdict != Accepted {
+		t.Fatalf("Submit() of a match of an old journal = %v, want Accepted", out.Verdict)
 	}
 	if got := f.step(); got.Status != storage.JobDone {
 		t.Fatalf("job = %+v, want done", got)
@@ -173,42 +314,90 @@ func TestNewUserParsesAgain(t *testing.T) {
 	if n := f.srv.requests.Load(); n != 2 {
 		t.Errorf("%d downloads, want 2", n)
 	}
-	if got, want := f.keptPlayers(testMatchID), []string{playerIDOf(1), playerIDOf(6), playerIDOf(7)}; !slices.Equal(got, want) {
-		t.Errorf("match_players = %v, want %v", got, want)
-	}
-	if n := f.count("reference_samples"); n != 10 {
-		t.Errorf("%d reference samples, want the 10 of the first parse", n)
-	}
-	if out := f.submit(userP7, testMatchID); out.Verdict != Analyzed || out.Result.Team != 1 {
-		t.Errorf("Submit() again = %+v, want Analyzed for team 1", out)
+	if res, err := f.store.MatchResult(f.ctx, testMatchID, strconv.FormatUint(steamOf(1), 10)); err != nil || res != done(1, 0) {
+		t.Errorf("MatchResult() = %+v, %v; want the current versions", res, err)
 	}
 }
 
-func TestOldFormulasParsedAgain(t *testing.T) {
+// TestBadJournal breaks the journal of a parsed match: a journal that cannot
+// be read leaves the match not parsed. The job of the match and a new link
+// download the demo again and replace the journal, whether the numbers of
+// the match are of the current versions or not; the idle worker, which has
+// no link, fails on it once and does not try again until the bot restarts.
+func TestBadJournal(t *testing.T) {
 	f := newFixture(t)
-	// The match was parsed with the formulas before the current ones.
-	old := storage.ParsedMatch{MatchID: testMatchID, Map: "de_mirage", Score: [2]int{1, 1}, Rounds: 2, MetricsVersion: metrics.Version - 1}
-	players := []storage.PlayerMetrics{{PlayerID: playerIDOf(1), SteamID64: strconv.FormatUint(steamOf(1), 10), SkillLevel: 1, Metrics: []byte(`{}`)}}
-	if err := f.store.SaveMatch(f.ctx, old, players, t0); err != nil {
-		t.Fatal(err)
+	f.accept(userP1, testMatchID)
+	waiting := f.accept(userP6, testMatchID)
+	f.step()
+	broken := func() {
+		t.Helper()
+		if _, err := f.db().Exec(`UPDATE match_journals SET journal = x'00010203'`); err != nil {
+			t.Fatal(err)
+		}
 	}
+	// replaced checks the journal was replaced by that of the demo
+	// downloaded once more, with the numbers of the current versions.
+	replaced := func(what string, downloads int32) {
+		t.Helper()
+		if n := f.srv.requests.Load(); n != downloads {
+			t.Errorf("%s: %d downloads, want %d", what, n, downloads)
+		}
+		_, j, _, err := f.store.LoadAnalysis(f.ctx, testMatchID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := demo.DecodeJournal(j.Data); err != nil {
+			t.Errorf("%s: the journal is not replaced: %v", what, err)
+		}
+		for i, steam := range map[int]uint64{1: steamOf(1), 6: steamOf(6)} {
+			if res, err := f.store.MatchResult(f.ctx, testMatchID, strconv.FormatUint(steam, 10)); err != nil || res != done(i, (i-1)/5) {
+				t.Errorf("%s: MatchResult() of player %d = %+v, %v; want the current versions", what, i, res, err)
+			}
+		}
+		if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6}) {
+			t.Errorf("%s: facts for seats %v, want 1 and 6", what, got)
+		}
+	}
+
+	// The job of the match queued before the journal broke.
+	broken()
+	if got := f.step(); got.ID != waiting.ID || got.Status != storage.JobDone {
+		t.Fatalf("job = %+v, want done", got)
+	}
+	replaced("the job", 2)
+
+	// A new link, the numbers of the current versions.
+	broken()
 	if out := f.submit(userP1, testMatchID); out.Verdict != Accepted {
-		t.Fatalf("Submit() of a match of old formulas = %v, want Accepted", out.Verdict)
+		t.Fatalf("Submit() of a match whose journal cannot be read = %v, want Accepted", out.Verdict)
 	}
 	if got := f.step(); got.Status != storage.JobDone {
 		t.Fatalf("job = %+v, want done", got)
 	}
-	if n := f.srv.requests.Load(); n != 1 {
-		t.Errorf("%d downloads, want 1", n)
+	replaced("the link", 3)
+
+	// Older formulas: nothing to count again from.
+	broken()
+	if _, err := f.db().Exec(`UPDATE matches SET metrics_version = metrics_version - 1`); err != nil {
+		t.Fatal(err)
 	}
-	res, err := f.store.MatchResult(f.ctx, testMatchID, playerIDOf(1))
-	if err != nil || res.MetricsVersion != metrics.Version {
-		t.Errorf("MatchResult() = %+v, %v; want the current formulas", res, err)
+	if f.q.recountStale(f.ctx) || f.q.recountStale(f.ctx) {
+		t.Error("a journal that cannot be read was counted again")
 	}
-	// The samples of the new formulas come in addition to the old one.
-	if n := f.count("reference_samples"); n != 11 {
-		t.Errorf("%d reference samples, want 1 old and 10 new", n)
+	if n := strings.Count(f.logText(), "count a match again"); n != 1 {
+		t.Errorf("%d failures in the log, want 1:\n%s", n, f.logText())
 	}
+	if out := f.submit(userP6, testMatchID); out.Verdict != Accepted {
+		t.Fatalf("Submit() of a match of older formulas whose journal cannot be read = %v, want Accepted", out.Verdict)
+	}
+	if got := f.step(); got.Status != storage.JobDone {
+		t.Fatalf("job = %+v, want done", got)
+	}
+	replaced("older formulas", 4)
+	if n := strings.Count(f.logText(), "the journal of a match cannot be read"); n != 5 {
+		t.Errorf("%d warnings of a journal that cannot be read, want 5: the job, then a link and its job twice:\n%s", n, f.logText())
+	}
+	f.checkLog()
 }
 
 func TestJobFailures(t *testing.T) {
@@ -278,7 +467,7 @@ func TestJobFailures(t *testing.T) {
 			if !f.notes.heard(job.ID) {
 				t.Error("the notifier did not hear of the job")
 			}
-			if _, err := f.store.MatchResult(f.ctx, testMatchID, playerIDOf(1)); !errors.Is(err, storage.ErrNotFound) {
+			if _, err := f.store.MatchResult(f.ctx, testMatchID, strconv.FormatUint(steamOf(1), 10)); !errors.Is(err, storage.ErrNotFound) {
 				t.Errorf("MatchResult() error %v, want nothing saved", err)
 			}
 			f.checkLog()
@@ -343,7 +532,7 @@ func TestView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: metrics.Version, Team: 1}
+	want := done(6, 1)
 	if v.Job.Status != storage.JobDone || !v.HasResult || v.Result != want {
 		t.Errorf("View() of a job done = %+v, want the match %+v", v, want)
 	}

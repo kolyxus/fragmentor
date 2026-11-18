@@ -7,9 +7,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kolyxus/fragmentor/bot/content"
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/findings"
+	"github.com/kolyxus/fragmentor/bot/internal/i18n"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
+	"github.com/kolyxus/fragmentor/bot/internal/review"
 )
 
 // The findings of docs/FINDINGS.md, with -findings: for every player of
@@ -32,13 +35,15 @@ type analyzed struct {
 	teams  [2]string
 	names  map[uint64]string
 	a      *metrics.Analysis
+	// m is the summary of the match without its events, for the facts.
+	m *demo.Match
 }
 
 func keep(path string, m *demo.Match, a *metrics.Analysis) analyzed {
 	d := analyzed{
 		file: filepath.Base(path), mapID: m.Map, rounds: len(m.Rounds),
 		score: [2]int{m.Teams[0].Score, m.Teams[1].Score}, teams: [2]string{m.Teams[0].Name, m.Teams[1].Name},
-		names: make(map[uint64]string, len(m.Players)), a: a,
+		names: make(map[uint64]string, len(m.Players)), a: a, m: withoutEvents(m),
 	}
 	for _, p := range m.Players {
 		d.names[p.SteamID64] = p.Name
@@ -73,14 +78,15 @@ func withPast(demos []analyzed) [][]findings.Report {
 	return out
 }
 
-// findingsReport writes the findings of every player of the demos and the
-// summary of the rules.
-func findingsReport(w io.Writer, demos []analyzed) {
+// findingsReport writes the findings of every player of the demos, with the
+// template review of each in lang, and the summary of the rules.
+func findingsReport(w io.Writer, demos []analyzed, lang i18n.Lang) {
 	reports := withPast(demos)
 	for i, d := range demos {
 		fmt.Fprintf(w, "=== %s: %s, %d rounds, %d:%d\n", d.file, d.mapID, d.rounds, d.score[0], d.score[1])
 		for k, p := range d.a.Players {
 			writePlayer(w, d, p, reports[i][k])
+			writeReview(w, d, k, reports[i][k], lang)
 		}
 		fmt.Fprintln(w)
 	}
@@ -152,6 +158,23 @@ func writePlayer(w io.Writer, d analyzed, p metrics.Player, r findings.Report) {
 		fmt.Fprintf(w, "      strength: %s, weight %.2f\n", r.Findings[r.Strength.Finding].Rule, r.Strength.Weight)
 	} else {
 		fmt.Fprintln(w, "      strength: none")
+	}
+}
+
+// writeReview writes the template review of player k of the demo, as the
+// bot would make it: his facts, with the drills of bot/content. The level of
+// the player is unknown here.
+func writeReview(w io.Writer, d analyzed, k int, r findings.Report, lang i18n.Lang) {
+	c := content.Default()
+	f := findings.BuildFacts(findings.FactsInput{Match: d.m, Analysis: d.a, Player: k, Report: r,
+		Drills: func(rule findings.RuleID) []string { return c.DrillsFor(rule, d.mapID) }})
+	fmt.Fprintf(w, "    template review, %s:\n", lang)
+	for _, line := range strings.Split(review.Render(f, lang, c), "\n") {
+		if line == "" {
+			fmt.Fprintln(w)
+			continue
+		}
+		fmt.Fprintln(w, "      "+line)
 	}
 }
 

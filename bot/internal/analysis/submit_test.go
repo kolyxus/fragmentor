@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
-	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
 
@@ -168,7 +167,7 @@ func TestSubmitAnalyzed(t *testing.T) {
 	f.accept(userP1, testMatchID)
 	f.step()
 	out := f.submit(userP1, testMatchID)
-	want := storage.MatchResult{Map: "de_mirage", Score: [2]int{1, 1}, MetricsVersion: metrics.Version, Team: 0}
+	want := done(1, 0)
 	if out.Verdict != Analyzed || out.Result != want {
 		t.Errorf("Submit() of a parsed match = %+v, want Analyzed %+v", out, want)
 	}
@@ -178,5 +177,10 @@ func TestSubmitAnalyzed(t *testing.T) {
 	}
 	if calls := f.faceit.calls; calls != 2 {
 		t.Errorf("%d FACEIT calls, want 2: the parsed match is not asked for again", calls)
+	}
+	// A user who is no player of the parsed match: not his, whatever its
+	// journal holds.
+	if out := f.submit(userOther, testMatchID); out.Verdict != NotInMatch {
+		t.Errorf("Submit() of a user not in the parsed match = %+v, want NotInMatch", out)
 	}
 }

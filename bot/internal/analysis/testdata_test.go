@@ -1,47 +1,24 @@
 package analysis
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+	"github.com/kolyxus/fragmentor/bot/internal/findings"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
+	"github.com/kolyxus/fragmentor/bot/internal/testdemos"
 )
-
-// smallestDemo returns the smallest demo in bot/testdata, skipping the test
-// without one, or with -short. The demos are not in git.
-func smallestDemo(t *testing.T) string {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("parsing a real demo takes seconds")
-	}
-	files, err := filepath.Glob(filepath.Join("..", "..", "testdata", "*.dem.zst"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) == 0 {
-		t.Skip("no demos in bot/testdata")
-	}
-	size := func(f string) int64 {
-		info, err := os.Stat(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return info.Size()
-	}
-	return slices.MinFunc(files, func(a, b string) int { return cmp.Compare(size(a), size(b)) })
-}
 
 // serveFile makes the demo server answer the next request with the file,
 // cut off after limit bytes if limit > 0.
@@ -76,7 +53,7 @@ func serveFile(t *testing.T, srv *demoServer, path string, limit int64) {
 // database: the download, the zstd stream and the parser, with FACEIT
 // stubbed by a roster made of the players of the demo.
 func TestRealDemo(t *testing.T) {
-	file := smallestDemo(t)
+	file := testdemos.Smallest(t)
 	f := newFixture(t)
 	serveFile(t, f.srv, file, 0)
 
@@ -98,6 +75,11 @@ func TestRealDemo(t *testing.T) {
 			})
 		}
 		f.faceit.set(testMatchID, details)
+		// Users 42 and 43 are players 1 and 6 of the demo, by their
+		// SteamIDs: the facts are kept for them.
+		for user, i := range map[int64]int{userP1: 0, userP6: 5} {
+			f.linkAccount(user, storage.FaceitAccount{PlayerID: playerIDOf(i + 1), SteamID64: strconv.FormatUint(m.Players[i].SteamID64, 10)})
+		}
 		return m, nil
 	}
 	ctx, cancel := context.WithTimeout(f.ctx, 10*time.Minute)
@@ -117,44 +99,74 @@ func TestRealDemo(t *testing.T) {
 		t.Fatal("the demo was not parsed")
 	}
 
-	res, err := f.store.MatchResult(ctx, testMatchID, playerIDOf(1))
+	res, err := f.store.MatchResult(ctx, testMatchID, strconv.FormatUint(parsed.Players[0].SteamID64, 10))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Map != parsed.Map || res.Score != [2]int{parsed.Teams[0].Score, parsed.Teams[1].Score} || res.Team != parsed.Players[0].Team {
+	if res.Map != parsed.Map || res.Score != [2]int{parsed.Teams[0].Score, parsed.Teams[1].Score} || res.Team != parsed.Players[0].Team ||
+		res.Seat != 1 || res.JournalVersion != demo.JournalVersion || res.FactsVersion != findings.FactsVersion {
 		t.Errorf("MatchResult() = %+v, the demo is %s %d:%d", res, parsed.Map, parsed.Teams[0].Score, parsed.Teams[1].Score)
 	}
-	// With IDs, only the accounts of users 42 and 43, players 1 and 6;
-	// every player gives a sample.
-	if got := f.keptPlayers(testMatchID); !slices.Equal(got, []string{playerIDOf(1), playerIDOf(6)}) {
-		t.Errorf("match_players = %v, want the accounts of users 42 and 43", got)
-	}
-	if n := f.count("reference_samples"); n != len(parsed.Players) {
-		t.Errorf("%d reference samples, want %d", n, len(parsed.Players))
-	}
-	var stored string
-	if err := f.db().QueryRow(`SELECT metrics FROM match_players`).Scan(&stored); err != nil {
+	// Every player is kept with the metrics; the facts only of users 42 and
+	// 43, players 1 and 6.
+	_, j, players, err := f.store.LoadAnalysis(ctx, testMatchID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	var m storedMetrics
-	if err := json.Unmarshal([]byte(stored), &m); err != nil {
+	if len(players) != len(parsed.Players) {
+		t.Fatalf("%d players kept, the demo has %d", len(players), len(parsed.Players))
+	}
+	if got := f.withFacts(testMatchID); !slices.Equal(got, []int{1, 6}) {
+		t.Errorf("facts kept for seats %v, want those of users 42 and 43", got)
+	}
+	computed := metrics.Compute(parsed)
+	for i, p := range players {
+		var m storedMetrics
+		if err := json.Unmarshal(p.Metrics, &m); err != nil {
+			t.Fatal(err)
+		}
+		if m.Match != computed[i].Match || m.T != computed[i].T || m.CT != computed[i].CT {
+			t.Errorf("player %d: stored metrics differ from metrics.Compute of the demo", i+1)
+		}
+		if m.Match.Kills != parsed.Players[i].Kills || m.Match.Damage != parsed.Players[i].Damage {
+			t.Errorf("player %d: stored kills %d, damage %d; the summary has %d, %d", i+1,
+				m.Match.Kills, m.Match.Damage, parsed.Players[i].Kills, parsed.Players[i].Damage)
+		}
+	}
+	// The journal holds no SteamID and no name, and is the match again: a
+	// recount from it gives the same metrics.
+	anon, err := demo.DecodeJournal(j.Data)
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := metrics.Compute(parsed)[0]
-	if m.Match != want.Match || m.T != want.T || m.CT != want.CT {
-		t.Error("stored metrics differ from metrics.Compute of the demo")
+	raw, _ := json.Marshal(anon)
+	for _, p := range parsed.Players {
+		for _, secret := range []string{strconv.FormatUint(p.SteamID64, 10), `"` + p.Name + `"`} {
+			if strings.Contains(string(raw), secret) || strings.Contains(string(players[0].Facts), secret) {
+				t.Errorf("the journal or the facts hold %s", secret)
+			}
+		}
 	}
-	if m.Match.Kills != parsed.Players[0].Kills || m.Match.Damage != parsed.Players[0].Damage {
-		t.Errorf("stored kills %d, damage %d; the summary has %d, %d",
-			m.Match.Kills, m.Match.Damage, parsed.Players[0].Kills, parsed.Players[0].Damage)
+	if err := f.q.recount(ctx, testMatchID); err != nil {
+		t.Fatal(err)
 	}
+	_, _, again, err := f.store.LoadAnalysis(ctx, testMatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range players {
+		if string(again[i].Metrics) != string(players[i].Metrics) || string(again[i].Facts) != string(players[i].Facts) {
+			t.Errorf("player %d: the recount from the journal differs from the parse", i+1)
+		}
+	}
+	t.Logf("journal: %d KiB, facts of a player: %d KiB", len(j.Data)>>10, len(players[0].Facts)>>10)
 	f.checkLog()
 }
 
 // TestRealDemoCutShort breaks the download of a real demo off midway, twice:
 // the parser sees a truncated demo, the job knows it was the network.
 func TestRealDemoCutShort(t *testing.T) {
-	file := smallestDemo(t)
+	file := testdemos.Smallest(t)
 	f := newFixture(t)
 	serveFile(t, f.srv, file, 5<<20)
 	serveFile(t, f.srv, file, 5<<20)

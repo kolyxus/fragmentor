@@ -6,13 +6,14 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs"
+
+	"github.com/kolyxus/fragmentor/bot/internal/testdemos"
 )
 
 func TestParseNotZstd(t *testing.T) {
@@ -62,47 +63,13 @@ func TestCatch(t *testing.T) {
 	}
 }
 
-// testDemos returns the demos in bot/testdata and in its folders, like
-// 7-8lvl/ for the matches of other levels: the *.zst files. They are not in
-// git: the test skips without them, and with -short, as each takes seconds.
-func testDemos(t *testing.T) []string {
-	t.Helper()
-	if testing.Short() {
-		t.Skip("parsing real demos takes seconds")
-	}
-	var files []string
-	for _, pattern := range []string{"*.zst", filepath.Join("*", "*.zst")} {
-		found, err := filepath.Glob(filepath.Join("..", "..", "testdata", pattern))
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, found...)
-	}
-	if len(files) == 0 {
-		t.Skip("no demos in bot/testdata")
-	}
-	return files
-}
-
-// demoName names the subtest of a demo: its folder in testdata, if any, and
-// the start of its name.
-func demoName(file string) string {
-	name := filepath.Base(file)
-	if len(name) > 10 {
-		name = name[:10]
-	}
-	if dir := filepath.Base(filepath.Dir(file)); dir != "testdata" {
-		name = dir + "/" + name
-	}
-	return name
-}
-
-// TestParseTestdata checks what holds for any FACEIT match. That the numbers
-// are FACEIT's is checked by go run ./cmd/parsedemo -faceit testdata.
+// TestParseTestdata checks what holds for any FACEIT match, on the demos of
+// bot/testdata, see internal/testdemos. That the numbers are FACEIT's is
+// checked by go run ./cmd/parsedemo -faceit testdata.
 func TestParseTestdata(t *testing.T) {
 	twoFlashbangs := 0 // deaths with two flashbangs in all the demos
-	for _, file := range testDemos(t) {
-		t.Run(demoName(file), func(t *testing.T) {
+	for _, file := range testdemos.Files(t) {
+		t.Run(testdemos.Name(file), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 			m, err := ParseFile(ctx, file, Options{})
@@ -112,6 +79,8 @@ func TestParseTestdata(t *testing.T) {
 			if m.Suspicious || len(m.Warnings) != 0 {
 				t.Errorf("suspicious %t, warnings: %q", m.Suspicious, m.Warnings)
 			}
+			// The journal of the match: anonymous, and the match again.
+			t.Logf("journal: %d KiB", checkJournal(t, m)>>10)
 			if !strings.HasPrefix(m.Map, "de_") || m.TickRate != 64 {
 				t.Errorf("map %q, tick rate %v; want de_*, 64", m.Map, m.TickRate)
 			}
@@ -289,7 +258,7 @@ func checkEvents(t *testing.T, m *Match) {
 }
 
 func TestParseTestdataFailures(t *testing.T) {
-	file := testDemos(t)[0]
+	file := testdemos.Files(t)[0]
 	open := func(t *testing.T) *os.File {
 		f, err := os.Open(file)
 		if err != nil {

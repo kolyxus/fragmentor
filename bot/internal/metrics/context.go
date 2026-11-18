@@ -65,8 +65,10 @@ type Analysis struct {
 	// demo: a teamkill, the world, a suicide and leaving the server are no
 	// such deaths.
 	Deaths []Death
-	// Flashbangs is the flashbangs the players threw, those after the end
-	// of the round aside.
+	// Throws is every grenade the players threw, those after the end of
+	// the round aside, in the order of the demo. Flashbangs is the
+	// flashbangs among them, with whom each blinded.
+	Throws     []Throw
 	Flashbangs []Flashbang
 	// Chances is every chance a player had to trade a teammate.
 	Chances []TradeChance
@@ -169,6 +171,18 @@ type Death struct {
 	Wallbang     bool
 	NoScope      bool
 	KillerBlind  bool
+}
+
+// Throw is a grenade a player threw.
+type Throw struct {
+	Grenade int // ID in demo.Match.Grenades
+	Round   int
+	Tick    int
+	// Clock and Planted are the round clock as it was thrown, as in Death.
+	Clock   float64
+	Planted bool
+	Thrower uint64
+	Weapon  string // demo.Flashbang, demo.SmokeGrenade and the like
 }
 
 // Flashbang is a flashbang a player threw and whom it blinded for MinFlash
@@ -579,6 +593,8 @@ func (c *counter) grenadesThrown(a *Analysis, m *demo.Match, rounds map[int]demo
 			continue
 		}
 		st := p.on(r.Side(p.team))
+		throw := Throw{Grenade: g.ID, Round: g.Round, Tick: g.Tick, Thrower: p.id, Weapon: g.Weapon}
+		_, throw.Clock, throw.Planted = c.clock.of(r, g.Tick)
 		switch g.Weapon {
 		case demo.SmokeGrenade:
 			st.SmokesThrown++
@@ -612,6 +628,9 @@ func (c *counter) grenadesThrown(a *Analysis, m *demo.Match, rounds map[int]demo
 				st.BadFlashes++
 			}
 			a.Flashbangs = append(a.Flashbangs, fb)
+		default:
+			continue // no grenade the metrics know
 		}
+		a.Throws = append(a.Throws, throw)
 	}
 }

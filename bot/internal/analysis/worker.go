@@ -48,6 +48,11 @@ func (q *Queue) work(ctx context.Context, n Notifier) {
 			q.log.Error("take a job", "err", err)
 		}
 		if !ok {
+			// No job waits: a match of older formulas or facts may be
+			// counted again from its journal, one at a time.
+			if q.recountStale(ctx) {
+				continue
+			}
 			select {
 			case <-ctx.Done():
 			case <-q.wake:
@@ -94,7 +99,8 @@ func (q *Queue) run(ctx context.Context, n Notifier, job storage.Job) {
 			q.durations.add(q.now().Sub(start))
 		}
 		q.log.Info("job done", "job", job.ID, "parsed", res.parsed, "map", res.mapName, "rounds", res.rounds,
-			"suspicious", res.suspicious, "mib", res.bytes>>20, "duration", q.now().Sub(start).Round(time.Millisecond))
+			"suspicious", res.suspicious, "mib", res.bytes>>20, "journal_kib", res.journal>>10,
+			"duration", q.now().Sub(start).Round(time.Millisecond))
 	case ctx.Err() != nil:
 		// The bot is stopping, the demo is not to blame. The status
 		// message keeps "parsing" and is redrawn after the restart.

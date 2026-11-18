@@ -8,6 +8,7 @@ import (
 
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/findings"
+	"github.com/kolyxus/fragmentor/bot/internal/i18n"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 )
 
@@ -101,7 +102,9 @@ func TestMoment(t *testing.T) {
 func lobby(file string, untraded int) analyzed {
 	a := &metrics.Analysis{TickRate: 64}
 	d := analyzed{file: file, mapID: "de_mirage", rounds: 16, score: [2]int{13, 3}, teams: [2]string{"team_a", "team_b"},
-		names: make(map[uint64]string), a: a}
+		names: make(map[uint64]string), a: a,
+		m: &demo.Match{Map: "de_mirage", TickRate: 64, Rounds: make([]demo.Round, 16),
+			Teams: [2]demo.Team{{Name: "team_a", StartSide: demo.CT, Score: 13}, {Name: "team_b", StartSide: demo.T, Score: 3}}}}
 	for n := 1; n <= 16; n++ {
 		a.Rounds = append(a.Rounds, metrics.RoundInfo{Number: n, Winner: 0, Buy: [2]metrics.Buy{metrics.BuyForce, metrics.BuyForce}})
 	}
@@ -143,7 +146,7 @@ func TestFindingsReport(t *testing.T) {
 		}
 	}
 	var out bytes.Buffer
-	findingsReport(&out, []analyzed{first, lobby("second.dem.zst", 4)})
+	findingsReport(&out, []analyzed{first, lobby("second.dem.zst", 4)}, i18n.RU)
 	text := out.String()
 	for _, want := range []string{
 		"=== first.dem.zst: de_mirage, 16 rounds, 13:3",
@@ -157,6 +160,11 @@ func TestFindingsReport(t *testing.T) {
 		"round 2, 1:40, enemies 0, teammates 0, won, force, impact 1.00: demo_gototick 3680",
 		"mistake 2: bad_flashes, weight",
 		"strength: none",
+		// The template review of the player, as the bot would make it.
+		"    template review, ru:\n      Mirage, 13:3 — победа\n      У/С/А 12/16/3 · ADR 75,5 · KAST 70%",
+		"      Ошибки:\n      1. Смерти без размена: 12 из 16 смертей;",
+		"      Задание на неделю: Разбор своих смертей в демке",
+		"      Явных ошибок в этом матче нет",
 		"--- player6, team_b:",
 		"=== second.dem.zst",
 		"findings: none",
@@ -184,7 +192,7 @@ func TestFindingsReport(t *testing.T) {
 	}
 	// The report of no demos is the summary of nothing.
 	out.Reset()
-	findingsReport(&out, nil)
+	findingsReport(&out, nil, i18n.RU)
 	if !strings.Contains(out.String(), "the rules over 0 players of 0 demos") {
 		t.Errorf("the report of no demos: %q", out.String())
 	}

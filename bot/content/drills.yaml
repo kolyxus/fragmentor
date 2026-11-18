@@ -1,0 +1,164 @@
+# The drills a review may give as the task of the week, see content.Drill.
+#
+# Only drills that exist: a map of the Steam Workshop whose page was checked,
+# or what the game itself has. docs/notes/drills.md tells where and when each
+# was checked; check a page again before adding or changing a drill.
+#
+# The order matters: the task of a review is the first drill here that is
+# against its heaviest mistake and fits the map of the match.
+#
+# metric, better and min_sample are the progress of the drill: a measure of
+# internal/findings (docs/FINDINGS.md), whether fewer or more of it is better,
+# and how many opportunities of it a match needs for its number to count.
+drills:
+  - id: demo_review
+    title:
+      ru: Разбор своих смертей в демке
+      en: Review your deaths in the demo
+    task:
+      ru: >-
+        Открой в CS2 демку этого матча (её можно скачать на странице матча на FACEIT) и командами
+        demo_gototick из разбора перейди к каждому моменту. Посмотри, где стоял ближайший тиммейт,
+        мог ли он тебя разменять и откуда пришёл убийца, и реши, где стоило стоять.
+      en: >-
+        Open the demo of this match in CS2 (you can download it on the FACEIT page of the match) and go
+        to each moment with the demo_gototick commands of the review. See where your nearest teammate
+        stood, whether he could trade you and where the killer came from, and decide where you should
+        have stood.
+    builtin: true
+    source: the CS2 demo player; the ticks of demo_gototick checked in CS2 on 2026-11-12 (docs/DECISIONS.md)
+    findings: [lone_death, death_spot, dry_death, advantage_death, untraded_death]
+    metric: untraded_death
+    better: lower
+    min_sample: 8
+
+  - id: retakes
+    title:
+      ru: Ретейки
+      en: Retakes
+    task:
+      ru: >-
+        Сыграй несколько матчей в режиме «Ретейки». Заходи на плент вместе с тиммейтом и держись так,
+        чтобы успеть разменять его, а он — тебя.
+      en: >-
+        Play a few matches of Retakes. Take the site together with a teammate and stay where you can
+        trade him and he can trade you.
+    builtin: true
+    source: an official game mode since the Counter-Strike 2 update of 2025-10-22 (Valve, "Re-Retakes")
+    findings: [untraded_death, missed_trade, advantage_death]
+    metric: untraded_death
+    better: lower
+    min_sample: 8
+
+  - id: prefire_5e
+    title:
+      ru: Префаеры на карте матча (5E Prac)
+      en: Prefires on the map of the match (5E Prac)
+    task:
+      ru: >-
+        Пройди маршруты префаеров этой карты: сначала на лёгком уровне, потом на сложных. Каждый угол
+        встречай с полной остановкой и с прицелом на уровне головы.
+      en: >-
+        Run the prefire routes of this map: on the easy level first, then on the harder ones. Meet
+        every angle stopped dead, with your crosshair at head level.
+    by_map:
+      de_ancient: 3272008480
+      de_anubis: 3275080617
+      de_cache: 3716900703
+      de_dust2: 3244203953
+      de_inferno: 3251878584
+      de_mirage: 3232466864
+      de_nuke: 3279281339
+      de_overpass: 3532966737
+      de_train: 3369993742
+      de_vertigo: 3270706131
+    findings: [opening_loss, first_shot]
+    metric: opening_loss
+    better: lower
+    min_sample: 4
+
+  - id: yprac_prefire
+    title:
+      ru: "Yprac Hub: префаеры"
+      en: "Yprac Hub: prefire"
+    task:
+      ru: >-
+        В Yprac Hub выбери режим Prefire и проходи маршруты карты, на которой играешь чаще всего.
+        Каждый угол встречай с полной остановкой и с прицелом на уровне головы.
+      en: >-
+        In Yprac Hub pick the Prefire mode and run the routes of the map you play most. Meet every
+        angle stopped dead, with your crosshair at head level.
+    workshop: 3070715607
+    findings: [opening_loss, first_shot]
+    metric: opening_loss
+    better: lower
+    min_sample: 4
+
+  - id: aim_botz_first_shot
+    title:
+      ru: "Aim Botz: первая пуля"
+      en: "Aim Botz: the first bullet"
+    task:
+      ru: >-
+        100 убийств по стоящим ботам одиночными выстрелами в голову: перед каждым выстрелом полная
+        остановка, прицел заранее на уровне головы. Потом ещё 100 с движущимися ботами.
+      en: >-
+        100 kills of standing bots with single shots to the head: stop dead before every shot, with
+        your crosshair at head level beforehand. Then 100 more with moving bots.
+    workshop: 3070244462
+    findings: [first_shot, missed_trade]
+    metric: first_shot
+    better: lower
+    min_sample: 10
+
+  - id: aim_botz_counter_strafe
+    title:
+      ru: "Aim Botz: остановка перед выстрелом"
+      en: "Aim Botz: stop before you shoot"
+    task:
+      ru: >-
+        Шаг в сторону, контрстрейф — короткое нажатие противоположной клавиши — и выстрел в голову.
+        100 повторов влево и 100 вправо; стреляй, только когда остановился.
+      en: >-
+        A step to the side, a counter-strafe — a short tap of the opposite key — and a shot to the
+        head. 100 times to the left and 100 to the right; shoot only once you have stopped.
+    workshop: 3070244462
+    findings: [moving_shots]
+    metric: moving_shots
+    better: lower
+    min_sample: 30
+
+  - id: yprac_utility
+    title:
+      ru: "Yprac Hub: гранаты для своей позиции"
+      en: "Yprac Hub: utility for your position"
+    task:
+      ru: >-
+        В режиме Utility выбери карту этого матча и выучи дым и две флешки для позиции, которую чаще
+        всего играешь. Повтори каждую раскидку по 10 раз, чтобы в матче бросать их не задумываясь.
+      en: >-
+        In the Utility mode pick the map of this match and learn a smoke and two flashes for the
+        position you play most. Repeat each lineup 10 times, so that in a match you throw them without
+        thinking.
+    workshop: 3070715607
+    findings: [unused_grenades]
+    metric: unused_grenades
+    better: lower
+    min_sample: 8
+
+  - id: yprac_flashes
+    title:
+      ru: "Yprac Hub: флешки"
+      en: "Yprac Hub: flashes"
+    task:
+      ru: >-
+        В режиме Utility выучи две флешки для своей позиции, которые слепят врага, но не тебя и не
+        тиммейта. Отработай каждую по 10 раз, а в матче предупреждай тиммейтов перед броском.
+      en: >-
+        In the Utility mode learn two flashes for your position that blind the enemy, not you and not
+        your teammate. Throw each 10 times, and in a match tell your teammates before you throw.
+    workshop: 3070715607
+    findings: [bad_flashes]
+    metric: bad_flashes
+    better: lower
+    min_sample: 5

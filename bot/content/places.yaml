@@ -1,0 +1,192 @@
+# How players call the places of the maps, in Russian and in English.
+#
+# The keys are the place names of the game's navigation that the demos give
+# (demo.Kill.VictimPlace and KillerPlace, m_szLastPlaceName of the body),
+# collected from every kill of the demos in bot/testdata on 2026-11-16, and
+# for Dust2 and Nuke from those of bot/testdata/maps/ on 2026-11-18 by
+# go run ./cmd/parsedemo -places testdata/maps. A map or a place the demos
+# never had is not here: a review shows such a place as the game names it,
+# with spaces ("Top of Mid"), see content.SplitPlace.
+#
+# "# ?" marks a name to check by a player: the place was located by where its
+# deaths happened (the mean position next to the sites and spawns), but how
+# players call it is a guess.
+maps:
+  de_ancient:
+    name: {ru: Ancient, en: Ancient}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}
+      Middle: {ru: мид, en: mid}
+      TopofMid: {ru: топ мид, en: top mid}
+      CTSpawn: {ru: КТ-спавн, en: CT spawn}
+      MainHall: {ru: A мейн, en: A main}  # ? west of A, the way from the T side
+      SideHall: {ru: донат, en: donut}  # ? between mid and A
+      House: {ru: дом у мида, en: house}  # ? CT side of mid, next to top mid and CT spawn
+      Alley: {ru: аллея у B, en: B alley}  # ? CT side of B, north of the site
+      SideEntrance: {ru: кейв, en: cave}  # ? between the upper T side and B
+      Ramp: {ru: рампа B, en: B ramp}
+      TSideUpper: {ru: "Т-сайд, верх", en: upper T side}  # ?
+      TSideLower: {ru: "Т-сайд, низ", en: lower T side}  # ? next to B ramp
+      Outside: {ru: улица у мида, en: outside}  # ? south-west of mid, towards A main
+      Ruins: {ru: руины, en: ruins}
+      Water: {ru: вода, en: water}
+
+  de_anubis:
+    name: {ru: Anubis, en: Anubis}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}
+      Middle: {ru: мид, en: mid}
+      Canal: {ru: каналы, en: canals}
+      Bridge: {ru: мост, en: bridge}
+      MidDoors: {ru: двери мида, en: mid doors}
+      Main: {ru: A мейн, en: A main}
+      Walkway: {ru: вокей, en: walkway}  # ? between mid and A
+      Heaven: {ru: хевен, en: heaven}
+      Fountain: {ru: фонтан, en: fountain}
+      OutsideLong: {ru: лонг B, en: B long}  # ? west of B, the way from the T side
+      Connector: {ru: коннектор B, en: B connector}
+      BackofB: {ru: зад B, en: back of B}  # ? between B connector and palace
+      PalaceInterior: {ru: палас, en: palace}
+      Bricks: {ru: кирпичи, en: bricks}
+      Alley: {ru: аллея, en: alley}  # ? north of B, next to bricks
+      Street: {ru: улица, en: street}
+      TStairs: {ru: Т-лестница, en: T stairs}  # ? between street and canals
+      Ruins: {ru: руины, en: ruins}
+      SnipersNest: {ru: снайперка у КТ, en: sniper's nest}  # ? next to CT spawn
+      Tunnel: {ru: тоннель, en: tunnel}
+      TunnelStairs: {ru: лестница у тоннеля, en: tunnel stairs}  # ?
+      LowerTunnel: {ru: нижний тоннель, en: lower tunnel}  # ?
+      TSideUpper: {ru: "Т-сайд, верх", en: upper T side}  # ? south of A main
+      CTSideUpper: {ru: "КТ-сайд, верх", en: upper CT side}  # ? next to CT spawn
+      TSpawn: {ru: Т-спавн, en: T spawn}
+      CTSpawn: {ru: КТ-спавн, en: CT spawn}
+
+  de_cache:
+    name: {ru: Cache, en: Cache}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}
+      Mid: {ru: мид, en: mid}
+      MidRoof: {ru: крыша мида, en: mid roof}
+      Sandbags: {ru: мешки, en: sandbags}
+      Checkers: {ru: чекерс, en: checkers}
+      Connector: {ru: коннектор, en: connector}
+      Vents: {ru: венты, en: vents}
+      AMain: {ru: A мейн, en: A main}
+      BMain: {ru: B мейн, en: B main}
+      AHalls: {ru: A холлы, en: A halls}
+      BHalls: {ru: B холлы, en: B halls}
+      Garage: {ru: гараж, en: garage}
+      Boost: {ru: буст, en: boost}
+      AStairs: {ru: лестница у гаража, en: A stairs}  # ? next to boost and garage
+      Cubby: {ru: ниша у гаража, en: cubby}  # ? next to A stairs
+      OutsideA: {ru: выход на A, en: outside A}  # ? T side, east of garage
+      OutsideB: {ru: выход на B, en: outside B}  # ? T side, far east of B
+      TTruck: {ru: Т-трак, en: T truck}  # ? T spawn
+      TYard: {ru: Т-двор, en: T yard}  # ?
+      Useless: {ru: юзлесс, en: useless}  # ? between garage and vents
+      SunRoom: {ru: санрум, en: sun room}  # ? south of B halls
+      ForkLift: {ru: форклифт, en: forklift}
+      Truck: {ru: трак, en: truck}  # ? CT side of A
+      Highway: {ru: хайвей, en: highway}
+      Toxic: {ru: токсик, en: toxic}
+      Catwalk: {ru: кэт, en: catwalk}  # ? between forklift and toxic, above the ground
+      Ladder: {ru: лестница, en: ladder}  # ? next to toxic
+      ElectricalBox: {ru: щиток, en: electrical box}  # ? next to toxic
+      Squeaky: {ru: скрипка, en: squeaky}
+      Quad: {ru: квад, en: quad}
+      Corner: {ru: угол A, en: A corner}  # ? north of A, next to quad
+      Lockers: {ru: локеры, en: lockers}  # ?
+      Red: {ru: красная, en: red}  # ?
+      Heaven: {ru: хевен B, en: B heaven}
+      Rafters: {ru: рафтерс, en: rafters}  # ? above B
+      Headshot: {ru: хедшот, en: headshot}  # ? south of B
+      TreeRoom: {ru: дерево, en: tree room}  # ? west of B
+      CTLane: {ru: КТ-лейн, en: CT lane}  # ? between CT and connector
+      BusStop: {ru: остановка, en: bus stop}  # ? CT side, west
+
+  de_dust2:
+    name: {ru: Dust2, en: Dust2}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}
+      CTSpawn: {ru: КТ-спавн, en: CT spawn}
+      TSpawn: {ru: Т-спавн, en: T spawn}
+      LongA: {ru: лонг, en: long A}
+      LongDoors: {ru: двери лонга, en: long doors}
+      OutsideLong: {ru: выход к лонгу, en: outside long}  # ? T side, in front of long doors
+      Pit: {ru: яма, en: pit}
+      Side: {ru: у ямы, en: side pit}  # ? the end of long, east of pit
+      ARamp: {ru: рампа A, en: A ramp}  # ? east of A site, the way up from long
+      UnderA: {ru: под плентом A, en: under A}  # ? below A site, between it and CT spawn
+      ExtendedA: {ru: КТ у плента A, en: A extended}  # ? next to CT spawn, on the level of A site
+      Catwalk: {ru: шорт, en: short}  # the way from mid up to A, as on Mirage
+      ShortStairs: {ru: лестница на шорт, en: short stairs}  # ? between mid and short
+      Middle: {ru: мид, en: mid}
+      TopofMid: {ru: топ мид, en: top mid}  # the T end of mid
+      MidDoors: {ru: двери мида, en: mid doors}
+      BDoors: {ru: двери B, en: B doors}  # ? between CT mid and B site
+      Hole: {ru: окно на B, en: B window}  # ? above B site, towards B doors
+      UpperTunnel: {ru: верхние туннели, en: upper tunnels}
+      LowerTunnel: {ru: нижние туннели, en: lower tunnels}
+      TunnelStairs: {ru: лестница в туннелях, en: tunnel stairs}  # ? between upper and lower tunnels
+      OutsideTunnel: {ru: выход к туннелям, en: outside tunnels}  # ? T side, in front of upper tunnels
+
+  de_mirage:
+    name: {ru: Mirage, en: Mirage}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}
+      Middle: {ru: мид, en: mid}
+      TopofMid: {ru: топ мид, en: top mid}
+      SnipersNest: {ru: окно, en: window}
+      Connector: {ru: коннектор, en: connector}
+      Jungle: {ru: джунгли, en: jungle}
+      Stairs: {ru: стейрс, en: stairs}
+      TRamp: {ru: рампа, en: A ramp}
+      PalaceInterior: {ru: палас, en: palace}
+      PalaceAlley: {ru: проход к паласу, en: palace alley}  # ? T side, outside palace and ramp
+      Scaffolding: {ru: леса на A, en: scaffolding}  # ? A site, below palace
+      CTSpawn: {ru: КТ-спавн, en: CT spawn}
+      TSpawn: {ru: Т-спавн, en: T spawn}
+      Catwalk: {ru: шорт, en: short}  # the way from mid to B, above underpass
+      Underpass: {ru: андер, en: underpass}
+      Ladder: {ru: лестница у андера, en: ladder}  # ? next to underpass and short
+      Apartments: {ru: апсы, en: apartments}
+      Shop: {ru: маркет, en: market}  # ? between CT spawn and B
+      Truck: {ru: фургон на B, en: B van}  # ? B, next to apartments
+      SideAlley: {ru: проход к топ миду, en: side alley}  # ? T side, between T spawn and top mid
+      House: {ru: дом у Т-спавна, en: house}  # ? T side, on the way to apartments
+      BackAlley: {ru: проход к апсам, en: back alley}  # ? between top mid and apartments
+
+  de_nuke:
+    name: {ru: Nuke, en: Nuke}
+    places:
+      BombsiteA: {ru: плент A, en: A site}
+      BombsiteB: {ru: плент B, en: B site}  # the lower site, right under A
+      Outside: {ru: улица, en: outside}
+      Lobby: {ru: лобби, en: lobby}
+      Squeaky: {ru: скрипучая дверь, en: squeaky}  # ? between lobby and A site
+      Hut: {ru: хата, en: hut}
+      HutRoof: {ru: крыша хаты, en: hut roof}  # ? above hut, next to A site
+      Mini: {ru: мини, en: mini}  # ? south of A site, towards outside
+      Heaven: {ru: хевен, en: heaven}
+      Hell: {ru: хелл, en: hell}  # ? under heaven, east of the sites
+      Rafters: {ru: балки, en: rafters}  # ? above A site, north
+      Crane: {ru: кран, en: crane}  # ? above A site, next to rafters
+      Roof: {ru: крыша, en: roof}  # ? above lobby, west of A site
+      Catwalk: {ru: кэтвок, en: catwalk}  # ? high, east of the sites, next to heaven
+      Ramp: {ru: рампа, en: ramp}
+      Vents: {ru: вентиляция, en: vents}
+      Secret: {ru: секрет, en: secret}  # ? south-east, the way from outside down to B
+      Silo: {ru: силосы, en: silo}  # ? outside, on the silos south-west of A
+      Garage: {ru: гараж, en: garage}  # ? outside, south-east
+      Control: {ru: контрольная, en: control room}  # ? north-west of the sites, towards ramp
+      Trophy: {ru: трофейная, en: trophy room}  # ? west, between lobby and ramp
+      Vending: {ru: автоматы, en: vending}  # ? west of lobby
+      Admin: {ru: админка, en: admin}  # ? east of the sites, on the level of A
+      LockerRoom: {ru: раздевалка, en: locker room}  # ? east of the sites, next to hell
+      Decon: {ru: декон, en: decon}  # ? next to B site, south-west, below
+      Tunnels: {ru: туннели к B, en: B tunnels}  # ? under outside, the way down to B

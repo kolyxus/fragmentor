@@ -222,6 +222,10 @@ type Finding struct {
 	Kind    Kind   `json:"kind"`
 	Group   Group  `json:"group"`
 	Variant string `json:"variant,omitempty"`
+	// Model is how X and N read: ModelShare is X events of N
+	// opportunities, ModelPerRound X events in N rounds, ModelPerMatch a count
+	// of the match against the mean of the lobby, the death spot.
+	Model string `json:"model"`
 	// X is the events of the player and N his opportunities, or the rounds
 	// he played for a rule that counts by the round; for DeathSpot X is the
 	// untraded deaths at the spot and N one, the match.
@@ -374,6 +378,24 @@ func (d *data) report(i int, h History) Report {
 	return r
 }
 
+// The models of Finding.Model.
+const (
+	ModelShare    = "share"
+	ModelPerRound = "per_round"
+	ModelPerMatch = "per_match"
+)
+
+// String returns the name of the model in Finding.Model.
+func (m model) String() string {
+	switch m {
+	case perRound:
+		return ModelPerRound
+	case perMatch:
+		return ModelPerMatch
+	}
+	return ModelShare
+}
+
 // model is how the events of a measure are expected.
 type model int
 
@@ -492,7 +514,7 @@ func (d *data) judge(rl rule, i int, h History) (Finding, bool) {
 			Rule: rl.ID, Kind: rl.Kind, Group: rl.Group, Variant: t.variant,
 			X: x, N: t.n, Sample: t.sample,
 			BaseRate: rate, Expected: expected, Excess: excess, Z: excess / spread,
-			Impact: 1, Place: t.place, Side: t.side,
+			Impact: 1, Place: t.place, Side: t.side, Model: m.model.String(),
 		}
 		if rl.Kind == Mistake {
 			f.Impact = t.meanImpact()
@@ -550,12 +572,11 @@ func evidence(events []event, kind Kind, tickRate float64) []Evidence {
 	slices.SortStableFunc(sorted, func(a, b event) int {
 		return cmp.Or(cmp.Compare(a.ev.Round, b.ev.Round), cmp.Compare(a.ev.Tick, b.ev.Tick))
 	})
-	lead := int(math.Round(GotoLead.Seconds() * tickRate))
 	out := make([]Evidence, 0, len(sorted))
 	for _, e := range sorted {
 		ev := e.ev
 		ev.Impact = e.impact
-		ev.Goto = max(ev.Tick-lead, 0)
+		ev.Goto = GotoTick(ev.Tick, tickRate)
 		out = append(out, ev)
 	}
 	return out

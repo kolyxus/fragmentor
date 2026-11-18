@@ -38,15 +38,15 @@ func (q *Queue) View(ctx context.Context, id int64) (View, error) {
 		v.Position = state.Ahead + 1
 		v.Wait = startIn(q.now(), state.Running, state.Ahead, Workers, q.durations.estimate())
 	case storage.JobDone:
-		var playerID string
+		var steamID string
 		acc, err := q.store.FaceitAccount(ctx, j.TelegramID)
 		switch {
 		case err == nil:
-			playerID = acc.PlayerID
+			steamID = acc.SteamID64
 		case !errors.Is(err, storage.ErrNotFound):
 			return View{}, fmt.Errorf("load faceit account: %w", err)
 		}
-		res, err := q.store.MatchResult(ctx, j.MatchID, playerID)
+		res, err := q.store.MatchResult(ctx, j.MatchID, steamID)
 		switch {
 		case err == nil:
 			v.Result, v.HasResult = res, true

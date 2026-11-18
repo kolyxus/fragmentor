@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
-	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 	"github.com/kolyxus/fragmentor/bot/internal/storage"
 )
 
@@ -98,9 +98,15 @@ func (q *Queue) Submit(ctx context.Context, r Request) (Outcome, error) {
 	if len(active) >= MaxActiveJobs {
 		return Outcome{Verdict: TooMany}, nil
 	}
-	if res, ok, err := q.analyzed(ctx, link.MatchID, acc.PlayerID); err != nil {
+	if res, ok, err := q.analyzed(ctx, link.MatchID, acc.SteamID64); err != nil {
 		return Outcome{}, err
 	} else if ok {
+		// Counted with older formulas or facts: at once, from the journal.
+		if !fresh(res) {
+			if err := q.recount(ctx, link.MatchID); err != nil {
+				q.log.Error("count a match again on a request", "err", err)
+			}
+		}
 		return Outcome{Verdict: Analyzed, Result: res}, nil
 	}
 
@@ -152,19 +158,37 @@ func (q *Queue) Submit(ctx context.Context, r Request) (Outcome, error) {
 	return out, nil
 }
 
-// analyzed reports whether the match is parsed with the current formulas
-// and the FACEIT player is kept with it: then a new link changes nothing.
-// A player of the match who began to use the bot after it was parsed is not
-// kept with it, and the match is parsed again for them.
-func (q *Queue) analyzed(ctx context.Context, matchID, playerID string) (storage.MatchResult, bool, error) {
-	res, err := q.store.MatchResult(ctx, matchID, playerID)
+// analyzed reports whether the match is parsed, its journal of the current
+// version and readable, with the player of the SteamID64 in it: then a new
+// link changes nothing. Older formulas or facts are counted again from the
+// journal, see fresh; a player who began to use the bot after the match was
+// parsed is found in it by his SteamID64 all the same.
+//
+// A journal that cannot be read, demo.ErrBadJournal, leaves the match not
+// parsed: its demo is downloaded again and the journal replaced. It is read
+// at every such check, with fresh numbers too: a link at hand is the only
+// way to mend it, and the idle worker, which has none, only fails on it.
+func (q *Queue) analyzed(ctx context.Context, matchID, steamID64 string) (storage.MatchResult, bool, error) {
+	res, err := q.store.MatchResult(ctx, matchID, steamID64)
 	if errors.Is(err, storage.ErrNotFound) {
 		return storage.MatchResult{}, false, nil
 	}
 	if err != nil {
 		return storage.MatchResult{}, false, fmt.Errorf("load match: %w", err)
 	}
-	return res, res.MetricsVersion == metrics.Version && res.Team >= 0, nil
+	if res.JournalVersion != demo.JournalVersion || res.Seat == 0 {
+		return res, false, nil
+	}
+	_, _, _, err = q.journal(ctx, matchID)
+	switch {
+	case errors.Is(err, demo.ErrBadJournal):
+		// The match is not named: its ID leads to the page of the players.
+		q.log.Warn("the journal of a match cannot be read: its demo is parsed again", "err", err)
+		return res, false, nil
+	case err != nil:
+		return storage.MatchResult{}, false, fmt.Errorf("read the journal: %w", err)
+	}
+	return res, true, nil
 }
 
 // checkMatch tells whether the match can be parsed for the FACEIT player:

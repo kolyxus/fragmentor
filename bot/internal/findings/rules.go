@@ -116,6 +116,13 @@ func Measures() []string {
 	return out
 }
 
+// MoreIsBetter reports whether more of the measure named id is better, as
+// for a strength and the scoreboard, and whether there is such a measure.
+func MoreIsBetter(id string) (better, ok bool) {
+	m, ok := measureOf[id]
+	return m.good, ok
+}
+
 // parentOf returns the rule that id is nested in, "" if none.
 func parentOf(id RuleID) RuleID {
 	for _, r := range rules {

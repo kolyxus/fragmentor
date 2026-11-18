@@ -2,7 +2,6 @@ package analysis
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -27,20 +26,14 @@ type result struct {
 	rounds     int
 	suspicious bool
 	bytes      int64 // downloaded
-}
-
-// storedMetrics is what is kept of the metrics of a player: the blocks for
-// the match and for each side, without the SteamID and the team of
-// metrics.Player, since they go into the anonymous reference samples.
-type storedMetrics struct {
-	Match metrics.Stats `json:"match"`
-	T     metrics.Stats `json:"t"`
-	CT    metrics.Stats `json:"ct"`
+	journal    int   // the size of the journal kept
 }
 
 // process does the job: if the match is parsed already with the user in
-// it, nothing; otherwise it downloads and parses the demo, while the link
-// lives, and saves the match with the metrics of its players.
+// it, it counts the match again from its journal if the formulas or the
+// facts changed since; otherwise it downloads and parses the demo, while the
+// link lives, and saves the journal of the match, every player with the
+// metrics and the facts of the users of the bot.
 func (q *Queue) process(ctx context.Context, job storage.Job) (res result) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -56,9 +49,14 @@ func (q *Queue) process(ctx context.Context, job storage.Job) (res result) {
 		return result{reason: ReasonInternal, err: err}
 	}
 	// Another job of the match may have parsed it meanwhile.
-	if _, ok, err := q.analyzed(ctx, job.MatchID, acc.PlayerID); err != nil {
+	if done, ok, err := q.analyzed(ctx, job.MatchID, acc.SteamID64); err != nil {
 		return result{reason: ReasonInternal, err: err}
 	} else if ok {
+		if !fresh(done) {
+			if err := q.recount(ctx, job.MatchID); err != nil {
+				return result{reason: ReasonInternal, err: err}
+			}
+		}
 		return result{}
 	}
 
@@ -95,6 +93,11 @@ func (q *Queue) process(ctx context.Context, job storage.Job) (res result) {
 	if reason != "" {
 		return result{reason: reason, err: err}
 	}
+	anon, _ := demo.Anonymize(m)
+	journal, err := demo.EncodeJournal(anon)
+	if err != nil {
+		return result{reason: ReasonInternal, err: err}
+	}
 	match := storage.ParsedMatch{
 		MatchID:        job.MatchID,
 		Map:            m.Map,
@@ -105,10 +108,13 @@ func (q *Queue) process(ctx context.Context, job storage.Job) (res result) {
 		Warnings:       m.Warnings,
 		MetricsVersion: metrics.Version,
 	}
-	if err := q.store.SaveMatch(ctx, match, players, q.now()); err != nil {
+	if err := q.count(ctx, match, anon, players); err != nil {
 		return result{reason: ReasonInternal, err: err}
 	}
-	return result{parsed: true, mapName: m.Map, rounds: len(m.Rounds), suspicious: m.Suspicious, bytes: size}
+	if err := q.store.SaveAnalysis(ctx, match, storage.Journal{Version: demo.JournalVersion, Data: journal}, players, q.now()); err != nil {
+		return result{reason: ReasonInternal, err: err}
+	}
+	return result{parsed: true, mapName: m.Map, rounds: len(m.Rounds), suspicious: m.Suspicious, bytes: size, journal: len(journal)}
 }
 
 // fetch downloads the demo by the link and parses it on the way. It returns
@@ -148,14 +154,14 @@ func failReason(ctx context.Context, err error) string {
 	return ReasonBadDemo
 }
 
-// playersOf makes the players of the parsed match m to save: every player
-// of the demo with the metrics, and the FACEIT player ID and level from the
-// roster of the match details, joined by SteamID64. Which of them are kept
-// with the IDs is for storage.SaveMatch to decide. It checks that the demo
-// is of the match: the map is the same, and most of the players of the demo
-// are in the roster; and that the user's account is in the roster. On
-// failure it returns the reason.
-func playersOf(m *demo.Match, details faceit.Match, playerID string) ([]storage.PlayerMetrics, string, error) {
+// playersOf returns the players of the parsed match m to save, each at his
+// seat, the order of m.Players as demo.Anonymize has it: the SteamID64, and
+// the FACEIT player ID and level from the roster of the match details,
+// joined by SteamID64; the metrics and the facts are for count. It checks
+// that the demo is of the match: the map is the same, and most of the
+// players of the demo are in the roster; and that the user's account is in
+// the roster. On failure it returns the reason.
+func playersOf(m *demo.Match, details faceit.Match, playerID string) ([]storage.MatchPlayer, string, error) {
 	if details.Map != "" && !sameMap(m.Map, details.Map) {
 		return nil, ReasonBadDemo, fmt.Errorf("the demo is of %s, the match of %s", m.Map, details.Map)
 	}
@@ -168,9 +174,7 @@ func playersOf(m *demo.Match, details faceit.Match, playerID string) ([]storage.
 			roster[p.SteamID64] = p
 		}
 	}
-
-	computed := metrics.Compute(m)
-	out := make([]storage.PlayerMetrics, 0, len(m.Players))
+	out := make([]storage.MatchPlayer, 0, len(m.Players))
 	found := 0
 	for i, p := range m.Players {
 		steamID := strconv.FormatUint(p.SteamID64, 10)
@@ -178,17 +182,7 @@ func playersOf(m *demo.Match, details faceit.Match, playerID string) ([]storage.
 		if ok {
 			found++
 		}
-		b, err := json.Marshal(storedMetrics{Match: computed[i].Match, T: computed[i].T, CT: computed[i].CT})
-		if err != nil {
-			return nil, ReasonInternal, fmt.Errorf("encode metrics: %w", err)
-		}
-		out = append(out, storage.PlayerMetrics{
-			PlayerID:   rp.ID,
-			SteamID64:  steamID,
-			SkillLevel: rp.SkillLevel,
-			Team:       p.Team,
-			Metrics:    b,
-		})
+		out = append(out, storage.MatchPlayer{Seat: i + 1, SteamID64: steamID, PlayerID: rp.ID, SkillLevel: rp.SkillLevel, Team: p.Team})
 	}
 	if found*2 < len(m.Players) {
 		return nil, ReasonBadDemo, fmt.Errorf("%d of %d players of the demo are in the match", found, len(m.Players))

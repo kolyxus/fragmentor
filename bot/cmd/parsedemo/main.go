@@ -7,13 +7,16 @@
 // with -scope, the shooting metrics with the numbers of Scope.gg. With
 // -findings it prints, in place of the JSON, the findings of
 // internal/findings for every player of every demo and a summary of the
-// rules, see findings.go.
+// rules, see findings.go. With -places it prints, in place of the JSON, the
+// places of the kills of each map, where they are and what the dictionary
+// of places calls them, see places.go.
 // It exits with status 1 if a demo fails, its summary is suspicious (see
-// demo.Match) or anything differs from FACEIT.
+// demo.Match), anything differs from FACEIT, or with -places the dictionary
+// lacks a place.
 //
 // Run from bot/:
 //
-//	go run ./cmd/parsedemo [-faceit] [-findings] [-csda folder] [-scope file.json] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
+//	go run ./cmd/parsedemo [-faceit] [-findings [-lang en]] [-places] [-csda folder] [-scope file.json] [-events] [-timeout 5m] [-parallel 1] <file.dem.zst | folder>...
 //
 // A folder stands for every *.zst in it. For -faceit the match ID comes
 // from the file name, <match_id>-1-1.dem.zst, as FACEIT names its demos, and
@@ -42,9 +45,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kolyxus/fragmentor/bot/content"
 	"github.com/kolyxus/fragmentor/bot/internal/config"
 	"github.com/kolyxus/fragmentor/bot/internal/demo"
 	"github.com/kolyxus/fragmentor/bot/internal/faceit"
+	"github.com/kolyxus/fragmentor/bot/internal/i18n"
 	"github.com/kolyxus/fragmentor/bot/internal/metrics"
 )
 
@@ -61,12 +66,18 @@ func main() {
 	csdaDir := flag.String("csda", "", "folder with the JSON of cs-demo-analyzer to compare the metrics with")
 	scopePath := flag.String("scope", "", "JSON file with the numbers of Scope.gg to compare the shooting metrics with")
 	withFindings := flag.Bool("findings", false, "print the findings of every player and a summary of the rules in place of the JSON")
+	lang := flag.String("lang", "ru", "the language of the template reviews of -findings: ru or en")
+	withPlaces := flag.Bool("places", false, "print the places of the kills of each map, where they are and what places.yaml calls them, in place of the JSON")
 	envPath := flag.String("env", ".env", "file with FACEIT_API_KEY, for -faceit")
 	flag.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "usage: parsedemo [flags] <file.dem.zst | folder>...")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if !slices.Contains(i18n.Langs, i18n.Lang(*lang)) {
+		fmt.Fprintf(os.Stderr, "parsedemo: -lang %q, want ru or en\n", *lang)
+		os.Exit(2)
+	}
 
 	files, err := demoFiles(flag.Args())
 	if err != nil {
@@ -80,9 +91,11 @@ func main() {
 	r := &runner{
 		opts:        demo.Options{MaxSize: *maxSize << 20},
 		timeout:     *timeout,
-		printJSON:   *printJSON && !*withFindings,
+		printJSON:   *printJSON && !*withFindings && !*withPlaces,
 		printEvents: *printEvents,
 		findings:    *withFindings,
+		places:      *withPlaces,
+		lang:        i18n.Lang(*lang),
 		csdaDir:     *csdaDir,
 		out:         os.Stdout,
 		log:         os.Stderr,
@@ -150,6 +163,8 @@ type runner struct {
 	printJSON   bool
 	printEvents bool
 	findings    bool           // -findings
+	places      bool           // -places
+	lang        i18n.Lang      // -lang, of the template reviews
 	faceit      *faceit.Client // nil without -faceit
 	csdaDir     string         // "" without -csda
 	scope       scopeFile      // nil without -scope
@@ -163,6 +178,9 @@ type runner struct {
 	// under mu: the findings need them all, as the past of a player is his
 	// other demos of the run.
 	analyzed map[int]analyzed
+	// placeMaps collects the places of the kills of every demo for
+	// -places, by map, under mu.
+	placeMaps map[string]*mapPlaces
 }
 
 // run parses the files, n at a time, and reports whether all went well.
@@ -205,7 +223,10 @@ func (r *runner) run(files []string, n int) bool {
 				demos = append(demos, d)
 			}
 		}
-		findingsReport(r.out, demos)
+		findingsReport(r.out, demos, r.lang)
+	}
+	if r.places && !placesReport(r.out, r.placeMaps, content.Default().Maps()) {
+		ok = false
 	}
 	fmt.Fprintf(r.log, "peak memory of the process: %s\n", r.mem.peak())
 	return ok
@@ -226,6 +247,11 @@ func (r *runner) one(i int, path string, ownPeak bool) bool {
 	if err == nil {
 		analysis = metrics.Analyze(m)
 		players = analysis.Players
+	}
+	// The journal the bot would keep of the match, and how long it takes.
+	var journal journalInfo
+	if err == nil {
+		journal, err = makeJournal(m)
 	}
 
 	var report []string
@@ -264,6 +290,12 @@ func (r *runner) one(i int, path string, ownPeak bool) bool {
 		}
 		r.analyzed[i] = keep(path, m, analysis)
 	}
+	if r.places {
+		if r.placeMaps == nil {
+			r.placeMaps = make(map[string]*mapPlaces)
+		}
+		addPlaces(r.placeMaps, m)
+	}
 	if r.printJSON {
 		out := m
 		if !r.printEvents {
@@ -284,6 +316,7 @@ func (r *runner) one(i int, path string, ownPeak bool) bool {
 	if ownPeak {
 		line += ", peak memory " + r.mem.peak()
 	}
+	line += fmt.Sprintf(", journal %d KiB of %d KiB JSON in %d ms", journal.size>>10, journal.json>>10, journal.took.Milliseconds())
 	fmt.Fprintln(r.log, line)
 	if m.Suspicious {
 		fmt.Fprintln(r.log, "  SUSPICIOUS: the summary may be wrong")
@@ -327,4 +360,35 @@ func (r *runner) compare(path string, m *demo.Match, players []metrics.Player) (
 	}
 	report, mismatches := compare(m, players, details, stats)
 	return report, mismatches, nil
+}
+
+// journalInfo is the journal the bot would keep of a match: its size, the
+// size of its JSON, and how long making it took, anonymizing included.
+type journalInfo struct {
+	size, json int
+	took       time.Duration
+}
+
+// makeJournal makes the journal of m, as the bot does, and checks that it
+// gives the anonymous match back.
+func makeJournal(m *demo.Match) (journalInfo, error) {
+	start := time.Now()
+	anon, _ := demo.Anonymize(m)
+	b, err := demo.EncodeJournal(anon)
+	if err != nil {
+		return journalInfo{}, err
+	}
+	took := time.Since(start)
+	raw, err := json.Marshal(anon)
+	if err != nil {
+		return journalInfo{}, fmt.Errorf("encode the anonymous match: %w", err)
+	}
+	back, err := demo.DecodeJournal(b)
+	if err != nil {
+		return journalInfo{}, err
+	}
+	if again, err := json.Marshal(back); err != nil || string(again) != string(raw) {
+		return journalInfo{}, errors.New("the journal does not give the match back")
+	}
+	return journalInfo{size: len(b), json: len(raw), took: took}, nil
 }
