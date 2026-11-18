@@ -11,8 +11,24 @@
 
 ## Версия
 
-- `github.com/markus-wa/demoinfocs-golang/v6`, закреплена `v6.0.0-rc.1` (24.10.2026). Стабильной v6 нет,
-  последняя стабильная — `v5.2.0` (21.04.2026), запасной вариант. Нужен Go 1.27.
+- `github.com/markus-wa/demoinfocs-golang/v6`, закреплена `v6.0.0-rc.2` (13.11.2026; до 18.11.2026 —
+  `v6.0.0-rc.1` от 24.10.2026). Стабильной v6 нет, последняя стабильная — `v5.3.0` (13.11.2026), запасной
+  вариант. Нужен Go 1.27.
+- **Обновление CS2 от 11.11.2026** сломало разбор новых демок в `rc.1` и `v5.2.0` (заметки к `v6.0.0-rc.2`
+  и `v5.3.0`, issue #763, PR #764, #765, #767): у `CCSPlayerController` появились поля `m_recentKillQueue`,
+  `m_nFirstKill`, `m_nKillCount` с кодировщиком `fixed8`, а `rc.1` читал их как varint и при значениях от 128
+  сбивался. Наш симптом — `ErrDecodeFailed` на 15-м кадре: «unable to find existing entity N» или «variable
+  collection size … out of range … corrupt or desynced demo bitstream»; у v5 — нехватка памяти. Исправлено
+  в `rc.2` и `v5.3.0`: поля `fixed8`/`fixed16`/`fixed32` читаются как N бит.
+  - Как узнать демку после обновления: поле 2 заголовка `CDemoFileHeader` (`network_protocol`) — 14197
+    у демок с 11.11, 14185–14195 у демок `bot/testdata/` (октябрь — 9 ноября); `build_num` (поле 13)
+    у тех и других 10955 или 10924.
+  - Проверено 18.11.2026: на 13 демках `bot/testdata/` вывод `parsedemo -events` с `rc.2` побайтно равен
+    выводу с `rc.1` (сводка, метрики, все события); три демки после обновления (`bot/testdata/maps/`) `rc.2`
+    разбирает, `rc.1` — нет. В `rc.2` есть и ускорение чтения свойств (#762), на наших демках время разбора
+    в пределах разброса.
+  - Новое обновление CS2 может снова сломать разбор: первым признаком будет такая же ошибка на свежей
+    демке. Тогда смотреть релизы и issues библиотеки.
 - Что изменилось в v6 против v5 (заметки к `v6.0.0-rc.0`):
   - `NewParser(r, opts...)` с опциями из пакета `option`;
   - `ParseToEnd(ctx)`, а `Cancel()` убран — отмена через `ctx`;
@@ -238,7 +254,8 @@ Ryzen 5 PRO 4655G, `msgQueueSize` = 1000, разбор вместе с расп�
 ## Ссылки
 
 - https://github.com/markus-wa/demoinfocs-golang — README, `examples/`, `docs/game-events.md`
-- https://github.com/markus-wa/demoinfocs-golang/releases — заметки к `v6.0.0-rc.0` и `v6.0.0-rc.1`
+- https://github.com/markus-wa/demoinfocs-golang/releases — заметки к `v6.0.0-rc.0`, `v6.0.0-rc.1`,
+  `v6.0.0-rc.2` и `v5.3.0` (последние две — исправление разбора после обновления CS2 от 11.11.2026)
 - https://pkg.go.dev/github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs
 - Исходники: `parsing.go` (`ParseToEnd`, ошибки), `game_events.go` (`player_death`, `player_hurt`, порядок
   `GenericGameEvent`), `datatables.go` (`bindGameRules`: воссоздание раундов), `common/player.go`
