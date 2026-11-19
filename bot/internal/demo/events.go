@@ -6,7 +6,7 @@ package demo
 // grenades and flashes keep the order of the demo; sightings come in the
 // order they began.
 
-// Ref is a player or a bot as an event saw them.
+// Ref is a player or a bot as an event saw them: whose body it was.
 type Ref struct {
 	// ID is the SteamID64 of a player. A bot has none: its ID is its user
 	// ID on the server plus one, which tells bots apart within a round.
@@ -16,9 +16,9 @@ type Ref struct {
 	Side Side `json:"side"`
 	// Controller is the SteamID64 of the player who controlled the bot at
 	// the moment, if one did: a dead player may take over a bot of their
-	// team. Only the bodies of the events have it (Kill.Victim, Hit.Victim,
-	// Shot.Shooter, the refs of Sighting and Flash); the killer, the
-	// assister and the attacker of a bot's deeds are that player himself.
+	// team and play on in its body. Every ref of an event is a body, the
+	// killer, the assister and the attacker as well: what such a player
+	// does and what befalls him is the bot's, with Controller set.
 	Controller uint64 `json:"controller,string,omitempty"`
 }
 
@@ -34,11 +34,11 @@ type Kill struct {
 	// kill each other until the next round starts, and the bomb kills
 	// after the end of its round.
 	AfterRoundEnd bool `json:"after_round_end,omitempty"`
-	// Killer is nil for the world: the bomb, a fall. For a bot that a
-	// player controls the killer is that player.
+	// Killer is whose body killed, nil for the world: the bomb, a fall. A
+	// bot that a player controlled is the bot, with Ref.Controller set.
 	Killer *Ref `json:"killer"`
-	// Victim is whose body died: a bot that a player controlled is the
-	// bot, with Ref.Controller set.
+	// Victim is whose body died, and Assister whose body got the assist,
+	// a bot with Ref.Controller set as for the killer.
 	Victim   Ref  `json:"victim"`
 	Assister *Ref `json:"assister,omitempty"`
 	// FlashAssist means the assister blinded the victim with a flash.
@@ -55,9 +55,9 @@ type Kill struct {
 
 	// The context of the kill, as the game had it at the moment.
 	//
-	// VictimPlace and KillerPlace are where the two stood: the place names
-	// of the map's navigation, like "BombsiteB" or "TopofMid", "" if the
-	// demo does not tell. The world stands nowhere.
+	// VictimPlace and KillerPlace are where the two bodies stood: the place
+	// names of the map's navigation, like "BombsiteB" or "TopofMid", "" if
+	// the demo does not tell. The world stands nowhere.
 	VictimPlace string `json:"victim_place,omitempty"`
 	KillerPlace string `json:"killer_place,omitempty"`
 	// VictimWeapon is the weapon in the hands of the victim's body, and
@@ -154,8 +154,9 @@ type Hit struct {
 	Tick          int  `json:"tick"`
 	Round         int  `json:"round"` // as in Kill
 	AfterRoundEnd bool `json:"after_round_end,omitempty"`
-	// Attacker is nil for the world. For a bot that a player controls the
-	// attacker is that player.
+	// Attacker is whose body hit, nil for the world, and Victim whose body
+	// was hit: a bot that a player controlled is the bot, with
+	// Ref.Controller set.
 	Attacker *Ref `json:"attacker"`
 	Victim   Ref  `json:"victim"`
 	// Damage is the health the hit took, no more than the victim had.

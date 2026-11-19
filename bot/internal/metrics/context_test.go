@@ -174,24 +174,34 @@ func TestTradeChances(t *testing.T) {
 	r.kill(5000, r.p(5), r.p(2), afterEnd) // the round is over: no chance
 	r.sees(5000, 5100, r.p(3), r.p(5))
 	g.play(r)
+
+	r = newRound(demo.CT, demo.T)
+	// Player 4 kills 1 in a bot; 2 sees the bot, and it shoots at him: the
+	// same fight, the bot being player 4.
+	inBot := r.bot(8, 1, 4)
+	r.kill(100, inBot, r.p(1))
+	r.sees(100, 200, r.p(2), inBot)
+	r.hitAt(150, inBot, r.p(2), 30, demo.ClassRifle)
+	g.play(r)
 	a := Analyze(&g.m)
 
 	want := []TradeChance{
 		{Death: 0, Player: 2, Missed: true, Shot: true},
 		{Death: 3, Player: 2, Traded: true, Hit: true},
 		{Death: 3, Player: 3},
+		{Death: 6, Player: 2, Missed: true},
 	}
 	if !slices.Equal(a.Chances, want) {
 		t.Errorf("chances =\n%+v\nwant\n%+v", a.Chances, want)
 	}
 	ps := g.compute(t)
-	if s := stats(ps, 2, demo.CT); s.TradeChances != 2 || s.MissedTrades != 1 || s.TeammateDeaths != 2 {
-		t.Errorf("player 2: %d chances, %d missed, %d teammates' deaths; want 2, 1, 2", s.TradeChances, s.MissedTrades, s.TeammateDeaths)
+	if s := stats(ps, 2, demo.CT); s.TradeChances != 3 || s.MissedTrades != 2 || s.TeammateDeaths != 3 {
+		t.Errorf("player 2: %d chances, %d missed, %d teammates' deaths; want 3, 2, 3", s.TradeChances, s.MissedTrades, s.TeammateDeaths)
 	}
 	// The death after the end of the round is a teammate's death all the
 	// same: the base of the trade kills counts it as they do.
-	if s := stats(ps, 3, demo.CT); s.TradeChances != 1 || s.MissedTrades != 0 || s.TeammateDeaths != 4 {
-		t.Errorf("player 3: %d chances, %d missed, %d teammates' deaths; want 1, 0, 4", s.TradeChances, s.MissedTrades, s.TeammateDeaths)
+	if s := stats(ps, 3, demo.CT); s.TradeChances != 1 || s.MissedTrades != 0 || s.TeammateDeaths != 5 {
+		t.Errorf("player 3: %d chances, %d missed, %d teammates' deaths; want 1, 0, 5", s.TradeChances, s.MissedTrades, s.TeammateDeaths)
 	}
 }
 

@@ -22,7 +22,10 @@ import (
 // formulas are never mixed: bump it whenever a formula or a rule of
 // counting changes, or a new version of the demo parser changes the counts.
 // 2: the grenades thrown and the situations of deaths and trades.
-const Version = 2
+// 3: what a player does through a bot he took over is the bot's in the
+// totals as FACEIT counts them, and so in K and A of KAST and in the
+// multikills.
+const Version = 3
 
 // TradeWindow is how long after a death its killer may be killed for a
 // trade, the limit included.
@@ -64,7 +67,8 @@ type Stats struct {
 	// Rounds is the rounds the player's team played: the base of ADR.
 	Rounds int `json:"rounds"`
 
-	// As FACEIT counts them.
+	// As FACEIT counts them: what a player does through a bot he took
+	// over, and the bot's death, are the bot's.
 	Kills            int     `json:"kills"`
 	Deaths           int     `json:"deaths"`
 	Assists          int     `json:"assists"`
@@ -77,7 +81,7 @@ type Stats struct {
 	// RoundsPlayed is the rounds the player was alive in when the freeze
 	// time ended and did not leave the server alive after: the base of
 	// KAST. KASTRounds is those with a kill, an assist, survival or a
-	// traded death.
+	// traded death, the kill and the assist as FACEIT counts them.
 	RoundsPlayed int     `json:"rounds_played"`
 	KASTRounds   int     `json:"kast_rounds"`
 	KAST         float64 `json:"kast"`
@@ -103,7 +107,8 @@ type Stats struct {
 
 	// Clutches[x-1] is the 1vX clutches, X from 1 to 5.
 	Clutches [5]Clutch `json:"clutches"`
-	// MultiKills[n-2] is the rounds with exactly n kills, n from 2 to 5.
+	// MultiKills[n-2] is the rounds with exactly n kills as FACEIT counts
+	// them, n from 2 to 5.
 	MultiKills [4]int `json:"multi_kills"`
 
 	// Shooting. "In sight" is while the player sees a live enemy, the
@@ -307,10 +312,10 @@ func (p *player) on(side demo.Side) *Stats {
 	return &p.t
 }
 
-// player returns the player of the match r refers to, nil for a bot,
-// nobody or a stranger. It is who FACEIT counts: the killer, the assister
-// and the attacker are the controller of a bot already, and the victim is
-// the body, a bot's for a bot a player controls.
+// player returns the player of the match r refers to as FACEIT counts, nil
+// for a bot, nobody or a stranger. Every ref is a body: a bot is nobody,
+// whoever controls it. The coaching rules find the player with coach and
+// coached instead, a bot that a player controls being that player.
 func (c *counter) player(r *demo.Ref) *player {
 	if r == nil || r.Bot {
 		return nil

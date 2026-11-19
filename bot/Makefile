@@ -20,7 +20,7 @@ DEPLOY_SSH ?= $(or $(wildcard C:/Windows/Sysnative/OpenSSH/ssh.exe),ssh)
 DEPLOY_SCP ?= $(or $(wildcard C:/Windows/Sysnative/OpenSSH/scp.exe),scp)
 
 .DEFAULT_GOAL := build
-.PHONY: run test lint build build-linux deploy
+.PHONY: run test lint build build-linux deploy verify-demos
 
 run:
 	go run ./cmd/bot
@@ -35,6 +35,19 @@ lint:
 
 build:
 	go build -trimpath -o $(BIN) ./cmd/bot
+
+# The demo parser against FACEIT: parsedemo -faceit on every demo of testdata/
+# and of its folders, maps/ among them, which the tests do not take. The tests
+# pin the names of the raw fields of events, like attacker_pawn, on a few
+# recorded events; whether whole matches still agree with FACEIT, after an
+# update of CS2 or of demoinfocs above all, only this check tells. Run it
+# before every deploy and after every update of demoinfocs (section 4.3 of
+# DEPLOY.md). It needs FACEIT_API_KEY in .env and the demos, which are not in
+# git; it fails on any mismatch with FACEIT and on a suspicious summary.
+# The folders go to parsedemo, not the files, to keep the command short.
+verify-demos:
+	@$(if $(wildcard testdata/*.zst testdata/*/*.zst),,$(error make verify-demos: no demos in testdata/, see testdata/README.md))
+	go run ./cmd/parsedemo -faceit -json=false testdata $(sort $(wildcard testdata/*/))
 
 # A static binary: without cgo it does not depend on the server's libc.
 # Target-specific exports set the variables for go itself, whatever the shell.

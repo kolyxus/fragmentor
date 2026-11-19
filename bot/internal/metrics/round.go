@@ -68,8 +68,10 @@ func (c *counter) round(r demo.Round, e events) {
 
 // asFACEIT counts the kills, deaths, assists, headshots and damage as
 // FACEIT does, and the headshot rate by hits. A death is any death of the
-// player's own body; a bot that a player controls dies for itself, and its
-// kills and damage are the player's.
+// player's own body. A bot is no player, whoever controls it: what a player
+// does through a bot he took over, and the bot's death, are the bot's. The
+// headshot rate by hits is a coaching metric: there a bot that a player
+// controls is that player.
 func (c *counter) asFACEIT(kills []demo.Kill, hits []demo.Hit, side func(*player) *Stats, f roundFacts) {
 	for _, k := range kills {
 		if v := c.player(&k.Victim); v != nil {
@@ -96,15 +98,17 @@ func (c *counter) asFACEIT(kills []demo.Kill, hits []demo.Hit, side func(*player
 		}
 	}
 	for _, h := range hits {
-		a := c.player(h.Attacker)
-		if a == nil || !enemies(h.Attacker, &h.Victim) {
+		if !enemies(h.Attacker, &h.Victim) {
+			continue
+		}
+		if a := c.player(h.Attacker); a != nil {
+			side(a).Damage += h.Damage
+		}
+		a := c.coached(coach(*h.Attacker))
+		if a == nil || !bullet(h.Class) || computerBot(h.Victim) {
 			continue
 		}
 		s := side(a)
-		s.Damage += h.Damage
-		if !bullet(h.Class) || computerBot(h.Victim) {
-			continue
-		}
 		head := 0
 		if h.HitGroup == demo.HitHead {
 			head = 1

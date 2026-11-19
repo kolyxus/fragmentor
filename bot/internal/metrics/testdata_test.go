@@ -117,9 +117,19 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 	if len(ps) != len(m.Players) {
 		t.Fatalf("%d players, the match has %d", len(ps), len(m.Players))
 	}
-	// What the log says of each player, to bound the coaching metrics.
+	// What the log says of each player, to bound the coaching metrics: by
+	// the coaching rules, a bot under the player's control is the player.
 	started := make(map[uint64]int) // rounds started alive
-	deaths := make(map[uint64]int)  // deaths by enemies, a bot under the player's control included
+	coached := make(map[uint64]*coachTotals)
+	of := func(w who) *coachTotals {
+		if w.bot {
+			return &coachTotals{} // a bot no player controls: nobody
+		}
+		if coached[w.id] == nil {
+			coached[w.id] = &coachTotals{}
+		}
+		return coached[w.id]
+	}
 	for _, r := range m.Rounds {
 		for _, a := range r.Alive {
 			if !a.Bot {
@@ -128,8 +138,17 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 		}
 	}
 	for _, k := range m.Kills {
-		if duel(k) && !coach(k.Victim).bot {
-			deaths[coach(k.Victim).id]++
+		if !duel(k) {
+			continue
+		}
+		of(coach(k.Victim)).deaths++
+		if !computerBot(k.Victim) {
+			of(coach(*k.Killer)).kills++
+		}
+	}
+	for _, h := range m.Hits {
+		if enemies(h.Attacker, &h.Victim) {
+			of(coach(*h.Attacker)).damage += h.Damage
 		}
 	}
 	botRounds := 0
@@ -146,7 +165,8 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 	var total Stats // of all players, for what any match has
 	for i, p := range ps {
 		total = total.plus(p.Match)
-		checkShootingAndGrenades(t, i, p.Match)
+		own := of(who{id: p.SteamID64})
+		checkShootingAndGrenades(t, i, p.Match, *own)
 		want := m.Players[i]
 		s := p.Match
 		if p.SteamID64 != want.SteamID64 || p.Team != want.Team {
@@ -165,9 +185,9 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 		if s.BulletHits == 0 || s.HeadHits > s.BulletHits {
 			t.Errorf("player %d: %d of %d bullet hits in the head", i, s.HeadHits, s.BulletHits)
 		}
-		if s.OpeningWins > s.OpeningAttempts || s.TradeKills > s.Kills || s.TradedDeaths+s.UntradedDeaths != deaths[p.SteamID64] {
+		if s.OpeningWins > s.OpeningAttempts || s.TradeKills > own.kills || s.TradedDeaths+s.UntradedDeaths != own.deaths {
 			t.Errorf("player %d: opening %d of %d, trade kills %d of %d kills, deaths traded %d and not %d of %d by enemies",
-				i, s.OpeningWins, s.OpeningAttempts, s.TradeKills, s.Kills, s.TradedDeaths, s.UntradedDeaths, deaths[p.SteamID64])
+				i, s.OpeningWins, s.OpeningAttempts, s.TradeKills, own.kills, s.TradedDeaths, s.UntradedDeaths, own.deaths)
 		}
 		multi := 0
 		for n, rounds := range s.MultiKills {
@@ -201,9 +221,14 @@ func checkMatch(t *testing.T, m *demo.Match, ps []Player) {
 	}
 }
 
+// coachTotals is what the log says a player did by the coaching rules: his
+// kills of enemies, bots no player controls aside, his deaths by enemies and
+// his damage to enemies, a bot under his control being him.
+type coachTotals struct{ kills, deaths, damage int }
+
 // checkShootingAndGrenades checks the bounds of the shooting and grenade
-// metrics of player i.
-func checkShootingAndGrenades(t *testing.T, i int, s Stats) {
+// metrics of player i, own being his totals by the coaching rules.
+func checkShootingAndGrenades(t *testing.T, i int, s Stats, own coachTotals) {
 	t.Helper()
 	within := func(rate float64) bool { return rate >= 0 && rate <= 1 }
 	if s.AccuracyHits > s.AccuracyShots || s.FirstShotHits > s.FirstShotFights || s.MovingShots > s.MovingBase ||
@@ -218,19 +243,19 @@ func checkShootingAndGrenades(t *testing.T, i int, s Stats) {
 	}
 	// A duel is a kill: a pause of KillTimeGap at most between its hits,
 	// and a rifle needs no more than a magazine.
-	if s.RifleKillDuels+s.SniperKillDuels > s.Kills || s.RifleKillTime < 0 || s.RifleKillTime > 10 || s.SniperKillTime < 0 || s.SniperKillTime > 10 {
+	if s.RifleKillDuels+s.SniperKillDuels > own.kills || s.RifleKillTime < 0 || s.RifleKillTime > 10 || s.SniperKillTime < 0 || s.SniperKillTime > 10 {
 		t.Errorf("player %d: %d rifle duels of %v s, %d of sniper rifles of %v s, %d kills", i,
-			s.RifleKillDuels, s.RifleKillTime, s.SniperKillDuels, s.SniperKillTime, s.Kills)
+			s.RifleKillDuels, s.RifleKillTime, s.SniperKillDuels, s.SniperKillTime, own.kills)
 	}
 	// A flash blinds for seconds, not for minutes.
 	if s.EnemiesFlashed > 0 && (s.EnemyBlindTime < MinFlash.Seconds() || s.EnemyBlindTime > 10) {
 		t.Errorf("player %d: %d enemies blinded for %v s on average", i, s.EnemiesFlashed, s.EnemyBlindTime)
 	}
 	// Four grenades at most, two flashbangs among them: $1300 at most.
-	if s.GrenadeDamage > s.Damage || s.DeathsWithGrenades > s.Deaths || s.UnusedGrenadeValue > 1300*s.DeathsWithGrenades ||
+	if s.GrenadeDamage > own.damage || s.DeathsWithGrenades > own.deaths || s.UnusedGrenadeValue > 1300*s.DeathsWithGrenades ||
 		(s.DeathsWithGrenades > 0) != (s.UnusedGrenadeValue > 0) {
 		t.Errorf("player %d: grenade damage %d of %d, %d of %d deaths with grenades worth $%d", i,
-			s.GrenadeDamage, s.Damage, s.DeathsWithGrenades, s.Deaths, s.UnusedGrenadeValue)
+			s.GrenadeDamage, own.damage, s.DeathsWithGrenades, own.deaths, s.UnusedGrenadeValue)
 	}
 }
 
@@ -408,6 +433,14 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 			flashAssists[d.Assister]++
 		}
 	}
+	// The assists of the log by the coaching rules, a bot under the
+	// player's control being him, as the assists of the deaths are.
+	assists := make(map[uint64]int)
+	for _, k := range m.Kills {
+		if enemies(k.Assister, &k.Victim) && !coach(*k.Assister).bot {
+			assists[coach(*k.Assister).id]++
+		}
+	}
 	if len(a.RoundShots) == 0 || len(a.Fights) == 0 || len(a.GrenadeHits) == 0 || len(a.Clutches) == 0 {
 		t.Errorf("%d round shots, %d fights, %d grenade hits, %d clutches", len(a.RoundShots), len(a.Fights), len(a.GrenadeHits), len(a.Clutches))
 	}
@@ -429,9 +462,11 @@ func checkAnalysis(t *testing.T, m *demo.Match, a *Analysis) {
 		if n := st.FlashesThrown + st.SmokesThrown + st.HEGrenadesThrown + st.FireGrenadesThrown + st.DecoysThrown; thrown[p.SteamID64] != n {
 			t.Errorf("player %d: %d throws, the metrics %d grenades thrown", i, thrown[p.SteamID64], n)
 		}
-		// An assist is a flash assist or not, and FACEIT counts both.
-		if flashAssists[p.SteamID64] > st.Assists {
-			t.Errorf("player %d: %d flash assists of %d assists", i, flashAssists[p.SteamID64], st.Assists)
+		// An assist is a flash assist or not, and FACEIT counts both, but
+		// not those through a bot: those of the log bound the flash assists.
+		if flashAssists[p.SteamID64] > assists[p.SteamID64] || st.Assists > assists[p.SteamID64] {
+			t.Errorf("player %d: %d flash assists and %d as FACEIT counts them of %d assists", i,
+				flashAssists[p.SteamID64], st.Assists, assists[p.SteamID64])
 		}
 		if *s != want {
 			t.Errorf("player %d: the events add up to %+v, the metrics %+v", i, *s, want)

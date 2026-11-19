@@ -20,7 +20,9 @@ import (
 // JournalVersion is the version of what a journal holds. Bump it whenever
 // the parser or the events change what a Match holds: a match whose journal
 // is of an older version needs its demo again, a fresh link.
-const JournalVersion = 1
+// 2: the killer, the assister and the attacker are bodies, a bot that a
+// player controlled is the bot, and the place of the killer is his body's.
+const JournalVersion = 2
 
 // maxJournal bounds a decoded journal: the largest of bot/testdata is 1.2 MiB.
 const maxJournal = 64 << 20

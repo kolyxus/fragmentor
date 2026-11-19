@@ -2,9 +2,11 @@
 // summary of each as JSON: the map, the rounds with the score, every
 // player's kills, deaths, assists, headshots and damage, and the metrics of
 // internal/metrics. It reports how long each demo took and the peak memory.
-// With -faceit it compares the score and K/D/A with the match stats of the
-// FACEIT Data API; with -csda, the metrics with those of cs-demo-analyzer;
-// with -scope, the shooting metrics with the numbers of Scope.gg. With
+// With -faceit it compares the score, K/D/A, headshots, damage and ADR with
+// the match stats of the FACEIT Data API, as make verify-demos does for
+// every demo of testdata; with -csda, the metrics with those of
+// cs-demo-analyzer; with -scope, the shooting metrics with the numbers of
+// Scope.gg. With
 // -findings it prints, in place of the JSON, the findings of
 // internal/findings for every player of every demo and a summary of the
 // rules, see findings.go. With -places it prints, in place of the JSON, the
@@ -57,7 +59,7 @@ import (
 const faceitTimeout = 30 * time.Second
 
 func main() {
-	withFACEIT := flag.Bool("faceit", false, "compare the score and K/D/A with the FACEIT match stats")
+	withFACEIT := flag.Bool("faceit", false, "compare the score, K/D/A, headshots, damage and ADR with the FACEIT match stats")
 	timeout := flag.Duration("timeout", 5*time.Minute, "time limit for one demo")
 	maxSize := flag.Int64("max-size", demo.DefaultMaxSize>>20, "limit of a decompressed demo, MiB")
 	parallel := flag.Int("parallel", 1, "how many demos to parse at once")

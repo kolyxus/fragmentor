@@ -41,7 +41,7 @@ func (c *counter) shooting(r demo.Round, e events, side func(*player) *Stats) {
 		if h.Attacker == nil || !gunHit(h.Class) || !enemies(h.Attacker, &h.Victim) || computerBot(h.Victim) {
 			continue
 		}
-		a := who{id: h.Attacker.ID, bot: h.Attacker.Bot}
+		a := coach(*h.Attacker)
 		if hitAt[a] == nil {
 			hitAt[a] = make(map[int][]who)
 		}
@@ -177,7 +177,7 @@ func (c *counter) killTimes(hits []demo.Hit, side func(*player) *Stats) {
 		if h.Attacker == nil || !enemies(h.Attacker, &h.Victim) || computerBot(h.Victim) {
 			continue
 		}
-		a := who{id: h.Attacker.ID, bot: h.Attacker.Bot}
+		a := coach(*h.Attacker)
 		p := c.coached(a)
 		if p == nil {
 			continue

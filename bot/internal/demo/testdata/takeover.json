@@ -1,0 +1,84 @@
+{
+  "about": [
+    "Raw player_death and player_hurt events of FACEIT demos in which a dead player took over a bot, recorded",
+    "2026-11-19 with demoinfocs v6.0.0-rc.2 from the Dust2 and Nuke demos of bot/testdata/maps: the fields that",
+    "name players as the demo has them (data), the players the library named (library), what the game state",
+    "answered at the event (pawns: whose pawn a handle was; controls: which bot a player controlled) and whose",
+    "bodies the event names (want), which make verify-demos checks against FACEIT. A player is his user ID on",
+    "the server, a bot is \"bot\" with its user ID: no SteamIDs, no names, no match IDs."
+  ],
+  "events": [
+    {
+      "what": "player 1 hurts in bot 11, which he controls",
+      "map": "de_dust2", "tick": 142542, "name": "player_hurt",
+      "data": {"attacker": {"short": 1}, "attacker_pawn": {"long": 491520205}, "userid": {"short": 6}, "userid_pawn": {"long": -339935162}},
+      "library": {"attacker": "1", "victim": "6"},
+      "pawns": {"-339935162": "6", "491520205": "bot 11"},
+      "controls": {"1": "bot 11"},
+      "want": {"attacker": "bot 11", "victim": "6"}
+    },
+    {
+      "what": "bot 11, under player 1, is hurt",
+      "map": "de_dust2", "tick": 142557, "name": "player_hurt",
+      "data": {"attacker": {"short": 6}, "attacker_pawn": {"long": -339935162}, "userid": {"short": 1}, "userid_pawn": {"long": 491520205}},
+      "library": {"attacker": "6", "victim": "1"},
+      "pawns": {"-339935162": "6", "491520205": "bot 11"},
+      "controls": {"1": "bot 11"},
+      "want": {"attacker": "6", "victim": "bot 11"}
+    },
+    {
+      "what": "bot 11, under player 1, dies",
+      "map": "de_dust2", "tick": 142589, "name": "player_death",
+      "data": {"assister": {"short": 65535}, "assister_pawn": {"long": -1}, "attacker": {"short": 6}, "attacker_pawn": {"long": -339935162}, "userid": {"short": 1}, "userid_pawn": {"long": 491520205}},
+      "library": {"killer": "6", "victim": "1"},
+      "pawns": {"-339935162": "6", "491520205": "bot 11"},
+      "controls": {"1": "bot 11"},
+      "want": {"killer": "6", "victim": "bot 11"}
+    },
+    {
+      "what": "player 8 kills in bot 13, which he controls",
+      "map": "de_dust2", "tick": 152119, "name": "player_death",
+      "data": {"assister": {"short": 2}, "assister_pawn": {"long": -2084240909}, "attacker": {"short": 8}, "attacker_pawn": {"long": -1448640425}, "userid": {"short": 3}, "userid_pawn": {"long": 1058210067}},
+      "library": {"assister": "2", "killer": "8", "victim": "3"},
+      "pawns": {"-1448640425": "bot 13", "-2084240909": "2", "1058210067": "3"},
+      "controls": {"8": "bot 13"},
+      "want": {"assister": "2", "killer": "bot 13", "victim": "3"}
+    },
+    {
+      "what": "player 8 gets an assist in bot 13",
+      "map": "de_dust2", "tick": 152369, "name": "player_death",
+      "data": {"assister": {"short": 8}, "assister_pawn": {"long": -1448640425}, "attacker": {"short": 9}, "attacker_pawn": {"long": 1096810943}, "userid": {"short": 5}, "userid_pawn": {"long": 855081444}},
+      "library": {"assister": "8", "killer": "9", "victim": "5"},
+      "pawns": {"-1448640425": "bot 13", "1096810943": "9", "855081444": "5"},
+      "controls": {"8": "bot 13"},
+      "want": {"assister": "bot 13", "killer": "9", "victim": "5"}
+    },
+    {
+      "what": "a kill with no bot in it",
+      "map": "de_dust2", "tick": 158886, "name": "player_death",
+      "data": {"assister": {"short": 65535}, "assister_pawn": {"long": -1}, "attacker": {"short": 1}, "attacker_pawn": {"long": 978289073}, "userid": {"short": 0}, "userid_pawn": {"long": -521174796}},
+      "library": {"killer": "1", "victim": "0"},
+      "pawns": {"-521174796": "0", "978289073": "1"},
+      "controls": {},
+      "want": {"killer": "1", "victim": "0"}
+    },
+    {
+      "what": "player 7, back on the server, hurts in bot 13, which played for him",
+      "map": "de_dust2", "tick": 159924, "name": "player_hurt",
+      "data": {"attacker": {"short": 7}, "attacker_pawn": {"long": -1448640425}, "userid": {"short": 6}, "userid_pawn": {"long": -339935162}},
+      "library": {"attacker": "7", "victim": "6"},
+      "pawns": {"-1448640425": "bot 13", "-339935162": "6"},
+      "controls": {"7": "bot 13"},
+      "want": {"attacker": "bot 13", "victim": "6"}
+    },
+    {
+      "what": "the fire of player 3, who died before it burned: his pawn is gone",
+      "map": "de_nuke", "tick": 22309, "name": "player_hurt",
+      "data": {"attacker": {"short": 3}, "attacker_pawn": {"long": -842661726}, "userid": {"short": 7}, "userid_pawn": {"long": 811303403}},
+      "library": {"attacker": "3", "victim": "7"},
+      "pawns": {"811303403": "7"},
+      "controls": {},
+      "want": {"attacker": "3", "victim": "7"}
+    }
+  ]
+}

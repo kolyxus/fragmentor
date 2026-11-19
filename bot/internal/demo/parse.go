@@ -118,8 +118,11 @@ func parseError(err error) error {
 // its handlers run on the parser's goroutine that handles messages, and it is
 // read only after ParseToEnd has returned.
 type collector struct {
-	p       *demoinfocs.Parser
-	gs      *demoinfocs.GameState
+	p  *demoinfocs.Parser
+	gs *demoinfocs.GameState
+	// pawns answers what body and actor ask the game state; a test fakes it
+	// with what a demo had.
+	pawns   pawns
 	b       *builder
 	mapName string
 
@@ -164,10 +167,29 @@ type tickHealth struct{ tick, health int }
 
 type userTick struct{ user, tick int }
 
+// pawns is what the collector asks the game state about the bodies of a raw
+// event: whose pawn a handle is, and whether a player controls a bot.
+type pawns interface {
+	byPawn(handle uint64) *common.Player
+	controls(player, bot *common.Player) bool
+}
+
+// gamePawns answers from the game state of the parser.
+type gamePawns struct{ gs *demoinfocs.GameState }
+
+func (g gamePawns) byPawn(handle uint64) *common.Player {
+	return g.gs.Participants().FindByPawnHandle(handle)
+}
+
+func (g gamePawns) controls(player, bot *common.Player) bool {
+	return player.IsControllingBot() && player.ControlledBot() == bot
+}
+
 func newCollector(p *demoinfocs.Parser) *collector {
 	c := &collector{
 		p:          p,
 		gs:         p.GameState(),
+		pawns:      gamePawns{p.GameState()},
 		b:          newBuilder(),
 		lastHealth: make(map[*common.Player]tickHealth),
 		grenades:   make(map[common.UniqueID]int),
@@ -355,7 +377,7 @@ func (c *collector) bodyOf(p *common.Player) *playerRef {
 		return r
 	}
 	for _, h := range c.gs.Participants().Playing() {
-		if !h.IsBot && h.IsControllingBot() && h.ControlledBot() == p {
+		if !h.IsBot && c.pawns.controls(h, p) {
 			r.Controller = h.SteamID64
 			break
 		}
@@ -391,22 +413,24 @@ func (c *collector) onGameEvent(e events.GenericGameEvent) {
 		if !c.live() {
 			return
 		}
-		victim := c.victim(k.Victim, e.Data)
+		killer, victim, assister := c.deathBodies(k, e.Data)
 		ev := killEvent{
 			Tick:        tick,
-			Killer:      ref(k.Killer),
+			Killer:      c.bodyRef(killer, k.Killer),
 			Victim:      c.bodyRef(victim, k.Victim),
-			Assister:    ref(k.Assister),
+			Assister:    c.bodyRef(assister, k.Assister),
 			FlashAssist: k.AssistedFlash,
 			Headshot:    k.IsHeadshot,
 			Weapon:      weaponName(k.Weapon),
 			Class:       weaponClass(k.Weapon),
 			// Entities update after the events of a tick: the inventory,
-			// the weapon in hand, the place and the positions are still
-			// those of the moment of the death.
+			// the weapon in hand, the places and the positions are still
+			// those of the moment of the death. The place is the body's:
+			// a player who controls a bot stands where the bot does, while
+			// his own pawn lies where he died.
 			Grenades:     grenades(victim),
 			VictimPlace:  place(victim),
-			KillerPlace:  place(k.Killer),
+			KillerPlace:  place(killer),
 			ThroughSmoke: k.ThroughSmoke,
 			Wallbang:     k.IsWallBang(),
 			NoScope:      k.NoScope,
@@ -433,13 +457,13 @@ func (c *collector) onGameEvent(e events.GenericGameEvent) {
 			c.noteUnpaired()
 			return
 		}
-		victim := c.victim(h.Player, e.Data)
+		attacker, victim := c.hurtBodies(h, e.Data)
 		// Measured for every hit, live or not, to follow the hits of a tick.
 		damage := c.healthTaken(victim, h.Health, h.HealthDamage)
 		if c.live() {
 			c.b.hurt(hurtEvent{
 				Tick:     tick,
-				Attacker: ref(h.Attacker),
+				Attacker: c.bodyRef(attacker, h.Attacker),
 				Victim:   c.bodyRef(victim, h.Player),
 				Damage:   damage,
 				HitGroup: hitGroup(h.HitGroup),
@@ -472,10 +496,10 @@ func (c *collector) onDisconnect(tick int, data map[string]*msg.CMsgSource1Legac
 	}
 }
 
-// bodyRef returns the ref of whose body an event happened to, p, the
-// player whose pawn the raw event names, see victim; lib is the player the
-// library named, the controller of a bot it differs from. A bot that a
-// player controls gets that player as its Controller.
+// bodyRef returns the ref of the body p of an event, the player whose pawn
+// the raw event names, see body and actor; lib is the player the library
+// named, the controller of a bot it differs from. A bot that a player
+// controls gets that player as its Controller.
 func (c *collector) bodyRef(p, lib *common.Player) *playerRef {
 	r := ref(p)
 	if r != nil && p != lib && p.IsBot && lib != nil && !lib.IsBot {
@@ -490,17 +514,51 @@ func (c *collector) noteUnpaired() {
 	}
 }
 
-// victim returns the player whose pawn the raw event names, or lib, the
-// library's victim, if it names none. The library takes the victim from the
-// userid of the event, the controller: when a dead player takes over a bot,
-// the death of the bot and the hits on it name that player. The game counts
-// them for the bot, and so does FACEIT; seen on a FACEIT demo with a bot
-// that played for a player who left.
-func (c *collector) victim(lib *common.Player, data map[string]*msg.CMsgSource1LegacyGameEventKeyT) *common.Player {
-	if v := data["userid_pawn"]; v != nil {
-		if p := c.gs.Participants().FindByPawnHandle(uint64(v.GetValLong())); p != nil {
+// deathBodies returns whose bodies the raw player_death, data, names: the
+// killer, the victim and the assister of k, the library's event of it. The
+// names of the raw fields are pinned by a test on events recorded from
+// demos, testdata/takeover.json.
+func (c *collector) deathBodies(k *events.Kill, data map[string]*msg.CMsgSource1LegacyGameEventKeyT) (killer, victim, assister *common.Player) {
+	return c.actor(k.Killer, data, "attacker_pawn"), c.body(k.Victim, data, "userid_pawn"), c.actor(k.Assister, data, "assister_pawn")
+}
+
+// hurtBodies returns whose bodies the raw player_hurt, data, names: the
+// attacker and the victim of h, the library's event of it. See deathBodies.
+func (c *collector) hurtBodies(h *events.PlayerHurt, data map[string]*msg.CMsgSource1LegacyGameEventKeyT) (attacker, victim *common.Player) {
+	return c.actor(h.Attacker, data, "attacker_pawn"), c.body(h.Player, data, "userid_pawn")
+}
+
+// body returns the player whose pawn the raw event names under key, or lib,
+// the library's player, if it names none. The library takes the players of
+// player_death and player_hurt from their user IDs, the controllers: when a
+// dead player takes over a bot, the death of the bot and the hits on it name
+// that player. The game counts them for the bot, and so does FACEIT; seen on
+// a FACEIT demo with a bot that played for a player who left. This is how
+// the victim is found, userid_pawn.
+func (c *collector) body(lib *common.Player, data map[string]*msg.CMsgSource1LegacyGameEventKeyT, key string) *common.Player {
+	if v := data[key]; v != nil {
+		if p := c.pawns.byPawn(uint64(v.GetValLong())); p != nil {
 			return p
 		}
+	}
+	return lib
+}
+
+// actor returns whose body did what the raw event tells: lib, the killer,
+// the assister or the attacker the library named, or the bot lib controls
+// if the event names its pawn under key, attacker_pawn or assister_pawn.
+// What a player does through a bot is the bot's, and FACEIT counts it so:
+// seen on a FACEIT demo of Dust2, where players under bots killed, assisted
+// and hurt. A pawn that is gone, as that of a player whose fire burns on
+// after his death, leaves lib: the hit is his, for FACEIT too. Only the bot
+// lib controls takes his place, so a stale pawn handle, whose entity a new
+// pawn may reuse, never names another player.
+func (c *collector) actor(lib *common.Player, data map[string]*msg.CMsgSource1LegacyGameEventKeyT, key string) *common.Player {
+	if lib == nil || lib.IsBot {
+		return lib
+	}
+	if p := c.body(nil, data, key); p != nil && p != lib && p.IsBot && c.pawns.controls(lib, p) {
+		return p
 	}
 	return lib
 }

@@ -13,11 +13,11 @@ import (
 
 // compare checks a demo and the metrics of its players against the FACEIT
 // match. The score of each team, with the halves and the overtime, and
-// every player's K/D/A and team must match; headshots, damage and ADR are
-// shown for reference and marked with * when they differ, ADR as FACEIT
-// rounds it, to a tenth. Players are matched by SteamID64, which the rosters
-// of the match details give for every FACEIT player. It returns the report
-// lines and the number of mismatches.
+// every player's K/D/A, headshots, damage, ADR and team must match, ADR as
+// FACEIT rounds it, to a tenth; the headshots, damage and ADR that differ
+// are marked with *. Players are matched by SteamID64, which the rosters of
+// the match details give for every FACEIT player. It returns the report
+// lines and the number of mismatches, a line with a mismatch counting once.
 func compare(m *demo.Match, players []metrics.Player, details faceit.Match, stats faceit.MatchStats) ([]string, int) {
 	var (
 		lines      []string
@@ -82,7 +82,9 @@ func compare(m *demo.Match, players []metrics.Player, details faceit.Match, stat
 				continue
 			}
 			seen[sid] = true
-			add(p.Kills == fp.Kills && p.Deaths == fp.Deaths && p.Assists == fp.Assists && p.Team == team,
+			ours, theirs := adrs(adr[sid].damage, adr[sid].rounds, fp.ADR)
+			add(p.Kills == fp.Kills && p.Deaths == fp.Deaths && p.Assists == fp.Assists && p.Team == team &&
+				p.Headshots == fp.Headshots && p.Damage == fp.Damage && ours == theirs,
 				"    %-16s K/D/A %2d/%2d/%2d  FACEIT %2d/%2d/%2d  HS %s  damage %s  ADR %s",
 				fp.Nickname, p.Kills, p.Deaths, p.Assists, fp.Kills, fp.Deaths, fp.Assists,
 				pair(p.Headshots, fp.Headshots), pair(p.Damage, fp.Damage), pairADR(adr[sid].damage, adr[sid].rounds, fp.ADR))
@@ -141,11 +143,17 @@ func pair(ours, theirs int) string {
 	return s
 }
 
+// adrs returns our ADR, the damage a round, and FACEIT's, both to a tenth
+// as FACEIT shows it: they match when the two are equal.
+func adrs(damage, rounds int, theirs float64) (string, string) {
+	t := adrTenths(damage, rounds)
+	return fmt.Sprintf("%d.%d", t/10, t%10), fmt.Sprintf("%.1f", theirs)
+}
+
 // pairADR shows our ADR, the damage a round, and FACEIT's to a tenth, with *
 // if they differ so.
 func pairADR(damage, rounds int, theirs float64) string {
-	t := adrTenths(damage, rounds)
-	a, b := fmt.Sprintf("%d.%d", t/10, t%10), fmt.Sprintf("%.1f", theirs)
+	a, b := adrs(damage, rounds, theirs)
 	s := a + "/" + b
 	if a != b {
 		s += "*"

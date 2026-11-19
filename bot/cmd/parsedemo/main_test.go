@@ -104,26 +104,43 @@ func TestCompareAgrees(t *testing.T) {
 func TestCompareFindsDifferences(t *testing.T) {
 	m, players, details, stats := fixture()
 	m.Players[2].Deaths = 18   // K/D/A: a mismatch
-	m.Players[1].Damage = 1612 // damage: only marked
+	m.Players[1].Damage = 1612 // damage and ADR: a mismatch, the line counting once
 	players[1].Match.Damage = 1612
 	m.Teams[0].FirstHalf = 7 // the halves: one mismatch for the line
 	m.Teams[0].SecondHalf = 6
 	stats.Maps[0].Teams[0].Players = stats.Maps[0].Teams[0].Players[:1] // b2 is not in FACEIT
 	lines, mismatches := compare(m, players, details, stats)
 	text := strings.Join(lines, "\n")
-	if mismatches != 3 {
-		t.Errorf("%d mismatches, want 3: the score of team_a, b1's deaths and b2:\n%s", mismatches, text)
+	if mismatches != 4 {
+		t.Errorf("%d mismatches, want 4: the score of team_a, b1's deaths, a2's damage and b2:\n%s", mismatches, text)
 	}
 	for _, want := range []string{
 		"team_a               score 13 (7+6+0)  FACEIT 13 (8+5+0)  MISMATCH",
 		"b1               K/D/A 12/18/ 8  FACEIT 12/17/ 8  HS 7/7  damage 1532/1532  ADR 80.6/80.6  MISMATCH",
-		"damage 1612/1658*  ADR 84.8/87.3*  ok",
+		"damage 1612/1658*  ADR 84.8/87.3*  MISMATCH",
 		"a1               K/D/A 20/15/ 8  FACEIT 20/15/ 8  HS 9/9  damage 1884/1884  ADR 99.2/99.2  ok",
 		"b2               in the demo, not in the FACEIT stats  MISMATCH",
-		"result: 3 mismatches",
+		"result: 4 mismatches",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("no %q in:\n%s", want, text)
+		}
+	}
+}
+
+// Headshots, damage and ADR must match as K/D/A must: each alone is a
+// mismatch. A wrong raw field of an event, like attacker_pawn of the hits,
+// shows in the damage alone.
+func TestCompareEveryNumber(t *testing.T) {
+	for name, change := range map[string]func(*demo.Match, *faceit.MatchStats){
+		"headshots": func(m *demo.Match, _ *faceit.MatchStats) { m.Players[0].Headshots++ },
+		"damage":    func(m *demo.Match, _ *faceit.MatchStats) { m.Players[0].Damage++ },
+		"ADR":       func(_ *demo.Match, s *faceit.MatchStats) { s.Maps[0].Teams[1].Players[0].ADR = 99.3 },
+	} {
+		m, players, details, stats := fixture()
+		change(m, &stats)
+		if lines, mismatches := compare(m, players, details, stats); mismatches != 1 || !strings.Contains(strings.Join(lines, "\n"), "*  ") {
+			t.Errorf("%s: %d mismatches, want 1 marked with *:\n%s", name, mismatches, strings.Join(lines, "\n"))
 		}
 	}
 }

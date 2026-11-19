@@ -139,6 +139,47 @@ func TestBuilderBotsAreNotPlayers(t *testing.T) {
 	}
 }
 
+// A dead player may take over a bot of his team and play on in its body.
+// What the bot does and what befalls it are the bot's, as FACEIT counts
+// them; the log keeps the bot's body with the player as its controller.
+func TestBuilderBotTakeover(t *testing.T) {
+	b := newBuilder()
+	ct1, ct2 := human(1, CT), human(2, CT)
+	t1, t2, t3 := human(4, T), human(5, T), human(6, T)
+	inBot := &playerRef{ID: 12, Name: "BOT Eli", Side: CT, Bot: true, Controller: 1}
+	b.kill(killEvent{Tick: 10, Killer: t1, Victim: ct1})
+	b.hurt(hurtEvent{Tick: 20, Attacker: inBot, Victim: t1, Damage: 100})
+	b.kill(killEvent{Tick: 20, Killer: inBot, Victim: t1, Headshot: true})
+	b.hurt(hurtEvent{Tick: 30, Attacker: inBot, Victim: t2, Damage: 40})
+	b.kill(killEvent{Tick: 30, Killer: ct2, Victim: t2, Assister: inBot})
+	b.kill(killEvent{Tick: 40, Killer: t3, Victim: inBot})
+	endRound(b, end(T, []playerRef{*ct1, *ct2, *t1, *t2, *t3}))
+	m := b.build(24, game(b))
+
+	for _, tc := range []struct {
+		id                                 uint64
+		kills, deaths, assists, hs, damage int
+	}{
+		{1, 0, 1, 0, 0, 0}, // his own death only
+		{2, 1, 0, 0, 0, 0},
+		{4, 1, 1, 0, 0, 0},
+		{6, 1, 0, 0, 0, 0}, // a bot is a kill, whoever controls it
+	} {
+		p := playerByID(t, m, tc.id)
+		if p.Kills != tc.kills || p.Deaths != tc.deaths || p.Assists != tc.assists || p.Headshots != tc.hs || p.Damage != tc.damage {
+			t.Errorf("player %d: K/D/A %d/%d/%d HS %d damage %d, want %d/%d/%d HS %d damage %d", tc.id,
+				p.Kills, p.Deaths, p.Assists, p.Headshots, p.Damage, tc.kills, tc.deaths, tc.assists, tc.hs, tc.damage)
+		}
+	}
+	want := Ref{ID: 12, Bot: true, Side: CT, Controller: 1}
+	if k := m.Kills; k[1].Killer == nil || *k[1].Killer != want || k[2].Assister == nil || *k[2].Assister != want || k[3].Victim != want {
+		t.Errorf("kills %+v, want the bot with its controller", k)
+	}
+	if h := m.Hits; h[0].Attacker == nil || *h[0].Attacker != want || h[1].Attacker == nil || *h[1].Attacker != want {
+		t.Errorf("hits %+v, want the bot with its controller", h)
+	}
+}
+
 func TestBuilderResetForgetsTheWarmup(t *testing.T) {
 	b := newBuilder()
 	b.kill(killEvent{Killer: human(1, CT), Victim: human(4, T)})

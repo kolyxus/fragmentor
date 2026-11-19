@@ -198,8 +198,9 @@ func TestFACEITCounts(t *testing.T) {
 
 	r = newRound(demo.T, demo.T)
 	r.kill(10, r.p(2), r.p(4))
-	// Player 4 took over a bot: its kills and damage are his, its death the bot's.
-	r.kill(30, r.p(4), r.p(3))
+	// Player 4 took over a bot: its kill and its death are the bot's, the
+	// damage to it is damage. See TestBotTakeover.
+	r.kill(30, r.bot(2, 1, 4), r.p(3))
 	r.hit(r.p(1), r.bot(2, 1, 4), 100, demo.HitHead, demo.ClassRifle)
 	r.kill(50, r.p(1), r.bot(2, 1, 4))
 	r.kill(60, r.p(6), r.p(6), leave)
@@ -219,7 +220,7 @@ func TestFACEITCounts(t *testing.T) {
 		{3, demo.CT, 0, 1, 0, 0, 0},
 		{3, demo.T, 0, 1, 0, 0, 0},
 		{4, demo.T, 0, 1, 0, 0, 0},
-		{4, demo.CT, 1, 1, 0, 0, 0},
+		{4, demo.CT, 0, 1, 0, 0, 0},
 		{5, demo.T, 1, 1, 0, 0, 0},
 		{6, demo.T, 0, 1, 0, 0, 0},
 		{6, demo.CT, 0, 1, 0, 0, 0},
@@ -240,8 +241,85 @@ func TestFACEITCounts(t *testing.T) {
 	if ct := ps[1].CT; ct.Rounds != 1 || !near(ct.KD, 2) || !near(ct.ADR, 90) || !near(ct.HeadshotKillRate, 0.5) {
 		t.Errorf("player 1 on CT: %+v", ct)
 	}
-	if m := ps[4].Match; !near(m.KD, 0.5) {
-		t.Errorf("player 4: K/D %v, want 1/2", m.KD)
+	if m := ps[4].Match; m.Kills != 0 || m.Deaths != 2 || m.KD != 0 {
+		t.Errorf("player 4: K/D %d/%d (%v), want 0/2: the kill of the bot is not his", m.Kills, m.Deaths, m.KD)
+	}
+}
+
+// A dead player who takes over a bot of his team plays on in its body. By the
+// coaching rules the bot is the player, but in the totals as FACEIT counts
+// them what he does through it is the bot's, and so in K and A of KAST and in
+// the multikills, which count by them.
+func TestBotTakeover(t *testing.T) {
+	g := newGame()
+	withBot := func(r *round) []demo.Ref {
+		alive := []demo.Ref{*r.bot(9, 0, 0)}
+		for id := uint64(1); id <= 6; id++ {
+			alive = append(alive, *r.p(id))
+		}
+		return alive
+	}
+	// Player 1 dies with nothing done, untraded; then, in bot 9 of his team,
+	// he trades 2, hits 5 in the head, flashes for an assist and hits 4 with
+	// an HE before the bot dies.
+	r := newRound(demo.CT, demo.CT)
+	r.alive = withBot(r)
+	inBot := r.bot(9, 0, 1)
+	r.kill(100, r.p(4), r.p(1))
+	r.kill(150, r.p(5), r.p(2))
+	r.hitAt(200, inBot, r.p(5), 100, demo.ClassRifle).HitGroup = demo.HitHead
+	r.kill(200, inBot, r.p(5), headshot)
+	r.kill(300, r.p(3), r.p(6), assist(inBot, true))
+	r.hitAt(350, inBot, r.p(4), 30, demo.ClassGrenade).Weapon = demo.HEGrenade
+	r.kill(400, r.p(4), inBot)
+	g.play(r)
+	// Player 1 kills 4 himself, dies, and kills 5 in the bot: one kill.
+	r = newRound(demo.T, demo.T)
+	r.alive = withBot(r)
+	inBot = r.bot(9, 0, 1)
+	r.kill(100, r.p(1), r.p(4))
+	r.kill(200, r.p(5), r.p(1))
+	r.kill(300, inBot, r.p(5))
+	g.play(r)
+	ps := g.compute(t)
+
+	m := ps[1].Match
+	if m.Kills != 1 || m.Deaths != 2 || m.Assists != 0 || m.HeadshotKills != 0 || m.Damage != 0 {
+		t.Errorf("player 1: K/D/A %d/%d/%d HS %d damage %d, want 1/2/0 HS 0 damage 0: what he did in the bot is the bot's",
+			m.Kills, m.Deaths, m.Assists, m.HeadshotKills, m.Damage)
+	}
+	if m.RoundsPlayed != 2 || m.KASTRounds != 1 || m.MultiKills != [4]int{} {
+		t.Errorf("player 1: KAST %d of %d, multikills %v; want 1 of 2 and none: K and A as FACEIT counts them",
+			m.KASTRounds, m.RoundsPlayed, m.MultiKills)
+	}
+	if m.BulletHits != 1 || m.HeadHits != 1 || m.RifleHits != 1 || m.TradeKills != 1 || m.GrenadeDamage != 30 || m.RifleKillDuels != 1 ||
+		m.UntradedDeaths != 3 || m.TradedDeaths != 0 {
+		t.Errorf("player 1: %d of %d bullet hits in the head, %d of rifles, %d trade kills, grenade damage %d, %d rifle duels, "+
+			"deaths traded %d and not %d; want 1 of 1, 1, 1, 30, 1, 0 and 3: the bot is him for the coaching rules",
+			m.HeadHits, m.BulletHits, m.RifleHits, m.TradeKills, m.GrenadeDamage, m.RifleKillDuels, m.TradedDeaths, m.UntradedDeaths)
+	}
+	if s := ps[2].CT; s.TradedDeaths != 1 {
+		t.Errorf("player 2: %d traded deaths, want 1: the bot of player 1 traded him", s.TradedDeaths)
+	}
+
+	a := Analyze(&g.m)
+	if k := a.Rounds[0].Kills[1]; k != 0 || a.Rounds[1].Kills[1] != 1 {
+		t.Errorf("player 1 killed %d and %d in the rounds, as FACEIT counts it; want 0 and 1", k, a.Rounds[1].Kills[1])
+	}
+	var assisted, bot *Death
+	for i := range a.Deaths {
+		switch d := &a.Deaths[i]; {
+		case d.Round == 1 && d.Victim == 6:
+			assisted = d
+		case d.Round == 1 && d.Victim == 1 && d.Tick == 400:
+			bot = d
+		}
+	}
+	if assisted == nil || assisted.Assister != 1 || !assisted.FlashAssist {
+		t.Errorf("the death of 6 = %+v, want the flash assist of player 1 in the bot", assisted)
+	}
+	if bot == nil || bot.DamageBefore != 130 || bot.Dry || bot.Killer != 4 {
+		t.Errorf("the death of the bot = %+v, want player 1 dying with 130 damage dealt in the bot", bot)
 	}
 }
 
@@ -290,6 +368,8 @@ func TestHeadshotHitRate(t *testing.T) {
 	r.hit(r.p(1), r.p(5), 20, demo.HitChest, demo.ClassPistol)
 	r.hit(r.p(1), r.p(6), 100, demo.HitHead, demo.ClassSniper)
 	r.hit(r.p(1), r.bot(2, 1, 4), 60, demo.HitHead, demo.ClassSMG) // a bot under player 4: player 4
+	// Player 1 in a bot of his team: his hit for the rate, the bot's damage.
+	r.hit(r.bot(3, 0, 1), r.p(5), 45, demo.HitHead, demo.ClassRifle)
 	// Not counted: a shotgun, a grenade, a knife, a teammate, a bot no player controls.
 	r.hit(r.p(1), r.p(5), 40, demo.HitHead, demo.ClassShotgun)
 	r.hit(r.p(1), r.p(6), 50, demo.HitGeneric, demo.ClassGrenade)
@@ -299,11 +379,14 @@ func TestHeadshotHitRate(t *testing.T) {
 	g.play(r)
 	p := g.compute(t)[1].Match
 
-	if p.BulletHits != 6 || p.HeadHits != 3 || !near(p.HeadshotHitRate, 0.5) {
-		t.Errorf("bullet hits %d, head %d, rate %v; want 6, 3, 0.5", p.BulletHits, p.HeadHits, p.HeadshotHitRate)
+	if p.BulletHits != 7 || p.HeadHits != 4 || !near(p.HeadshotHitRate, 4.0/7) {
+		t.Errorf("bullet hits %d, head %d, rate %v; want 7, 4, 4/7", p.BulletHits, p.HeadHits, p.HeadshotHitRate)
+	}
+	if p.RifleHits != 3 || p.RifleHeadHits != 2 || p.PistolHits != 1 || p.PistolHeadHits != 0 {
+		t.Errorf("rifles %d of %d in the head, pistols %d of %d; want 2 of 3, 0 of 1", p.RifleHeadHits, p.RifleHits, p.PistolHeadHits, p.PistolHits)
 	}
 	if p.Damage != 120+30+25+20+100+60+40+50+40+100 {
-		t.Errorf("damage %d: every hit on an enemy counts, bots and shotguns too", p.Damage)
+		t.Errorf("damage %d: every hit on an enemy counts, bots and shotguns too, but not those of a bot", p.Damage)
 	}
 }
 
@@ -372,7 +455,7 @@ func TestTrades(t *testing.T) {
 
 	r = newRound(demo.T, demo.T)
 	r.kill(100, r.p(4), r.p(1))
-	r.kill(150, r.p(1), r.p(4)) // 1 in a bot avenges himself: no trade
+	r.kill(150, r.bot(7, 0, 1), r.p(4)) // 1 in a bot avenges himself: no trade
 	r.kill(1000, r.p(5), r.p(2))
 	r.kill(1100, r.p(3), r.p(5), afterEnd) // after the end, still a trade
 	g.play(r)

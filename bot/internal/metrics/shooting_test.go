@@ -33,11 +33,11 @@ func TestAccuracy(t *testing.T) {
 	g.play(r)
 
 	r = newRound(demo.T, demo.T)
-	// Player 3 in a bot: the bot sees and fires, the hit is his.
+	// Player 3 in a bot: the bot sees, fires and hits, all of it his.
 	bot := r.bot(2, 0, 3)
 	r.sees(100, 200, bot, r.p(5))
 	r.shot(150, bot, demo.ClassRifle)
-	r.hitAt(150, r.p(3), r.p(5), 27, demo.ClassRifle)
+	r.hitAt(150, bot, r.p(5), 27, demo.ClassRifle)
 	g.play(r)
 	ps := g.compute(t)
 

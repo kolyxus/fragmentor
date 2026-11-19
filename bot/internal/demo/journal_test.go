@@ -24,6 +24,7 @@ func journalMatch() *Match {
 	p := func(id uint64, side Side) Ref { return Ref{ID: id, Side: side} }
 	pp := func(id uint64, side Side) *Ref { r := p(id, side); return &r }
 	bot := Ref{ID: 7, Bot: true, Side: T, Controller: b1}
+	inBot := func() *Ref { r := bot; return &r } // player 3 kills and hits in the bot
 	return &Match{
 		Map: "de_mirage", TickRate: 64, MaxRounds: 24, RoundTime: 115, BombTime: 40,
 		Teams: [2]Team{{Name: "team_a1", StartSide: CT, Score: 1}, {Name: "team_b1", StartSide: T}},
@@ -41,10 +42,14 @@ func journalMatch() *Match {
 			{Tick: 200, Round: 1, Killer: pp(a1, CT), Victim: p(b1, T), Assister: pp(a2, CT), FlashAssist: true, Weapon: "AK-47", Class: ClassRifle,
 				Grenades: []string{Flashbang}, VictimPlace: "TopofMid", KillerPlace: "Middle",
 				Positions: []Position{{Body: p(a1, CT), X: 1, Y: 2, Z: 3}, {Body: p(b1, T), X: 4, Y: 5}, {Body: bot, X: 6}}},
+			{Tick: 260, Round: 1, Killer: inBot(), Victim: p(a2, CT), Assister: pp(b2, T), Weapon: "MP9", Class: ClassSMG},
 			{Tick: 300, Round: 1, Killer: pp(a1, CT), Victim: bot, Weapon: "AK-47", Class: ClassRifle},
 			{Tick: 400, Round: 1, Victim: p(b2, T), Weapon: "World", Class: ClassWorld},
 		},
-		Hits:      []Hit{{Tick: 199, Round: 1, Attacker: pp(a1, CT), Victim: p(b1, T), Damage: 100, HitGroup: HitHead, Weapon: "AK-47", Class: ClassRifle}},
+		Hits: []Hit{
+			{Tick: 199, Round: 1, Attacker: pp(a1, CT), Victim: p(b1, T), Damage: 100, HitGroup: HitHead, Weapon: "AK-47", Class: ClassRifle},
+			{Tick: 260, Round: 1, Attacker: inBot(), Victim: p(a2, CT), Damage: 30, HitGroup: HitChest, Weapon: "MP9", Class: ClassSMG},
+		},
 		Shots:     []Shot{{Tick: 199, Round: 1, Shooter: p(a1, CT), Weapon: "AK-47", Class: ClassRifle, Speed: 12.5, MaxSpeed: 215}, {Tick: 250, Round: 1, Shooter: bot}},
 		Sightings: []Sighting{{Round: 1, Spotter: p(a1, CT), Target: p(b1, T), From: 150, To: 200}, {Round: 1, Spotter: p(x, CT), Target: bot, From: 1, To: 2}},
 		Grenades:  []Grenade{{ID: 1, Tick: 120, Round: 1, Thrower: p(a2, CT), Weapon: Flashbang}},
@@ -81,10 +86,18 @@ func TestAnonymize(t *testing.T) {
 	if k.Killer.ID != 1 || k.Victim.ID != 3 || k.Assister.ID != 2 || k.Positions[2] != (Position{Body: Ref{ID: 7, Bot: true, Side: T, Controller: 3}, X: 6}) {
 		t.Errorf("kill = %+v, positions %+v", k, k.Positions)
 	}
-	if v := anon.Kills[1].Victim; v.ID != 7 || !v.Bot || v.Controller != 3 {
+	inBot := Ref{ID: 7, Bot: true, Side: T, Controller: 3}
+	if v := anon.Kills[2].Victim; v != inBot {
 		t.Errorf("the bot = %+v", v)
 	}
-	if anon.Kills[2].Killer != nil || anon.Sightings[1].Spotter.ID != 5 || anon.Flashes[1].Thrower != nil || anon.Flashes[0].Thrower.ID != 2 ||
+	// What player 3 does in the bot is the bot's, with his seat.
+	if k := anon.Kills[1]; k.Killer == nil || *k.Killer != inBot || k.Assister.ID != 4 || k.Victim.ID != 2 {
+		t.Errorf("the kill of the bot = %+v", k)
+	}
+	if h := anon.Hits[1].Attacker; h == nil || *h != inBot {
+		t.Errorf("the hit of the bot = %+v", h)
+	}
+	if anon.Kills[3].Killer != nil || anon.Sightings[1].Spotter.ID != 5 || anon.Flashes[1].Thrower != nil || anon.Flashes[0].Thrower.ID != 2 ||
 		anon.Rounds[0].Alive[2].ID != 3 || anon.Rounds[0].Equipment[1].Body.Controller != 3 || anon.Hits[0].Attacker.ID != 1 ||
 		anon.Shots[1].Shooter.Controller != 3 || anon.Grenades[0].Thrower.ID != 2 {
 		t.Errorf("the refs of the events: %+v", anon)

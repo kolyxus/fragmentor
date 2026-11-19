@@ -54,6 +54,7 @@ Telegram-бот Fragmentor на Go. Сейчас умеет `/start` (запис
 | `make lint` | падает, если файлам нужен `gofmt`, затем `go vet ./...` |
 | `make build` | собирает `bin/fragmentor` (`bin/fragmentor.exe` на Windows) |
 | `make build-linux` | статический бинарник для сервера `bin/fragmentor-linux-amd64` (`LINUX_ARCH=arm64` — под ARM) |
+| `make verify-demos` | `parsedemo -faceit` по всем демкам `testdata/` и её папок, включая `maps/`: сверка разбора с FACEIT; перед каждой выкаткой и после обновления demoinfocs — раздел 4.3 [DEPLOY.md](DEPLOY.md) |
 | `make deploy` | выкатка на сервер: проверки, сборка, бэкап базы, замена бинарника, перезапуск — раздел 4.1 [DEPLOY.md](DEPLOY.md); запускает только автор |
 
 ## База
@@ -83,7 +84,7 @@ go run ./cmd/faceitrecord -nickname <ник> [-match <match_id>]...
 ```
 go run ./cmd/parsedemo testdata                          # все демки из папки
 go run ./cmd/parsedemo -events testdata/<демка>.dem.zst  # ещё и журнал: убийства, попадания, выстрелы, видимость, ослепления
-go run ./cmd/parsedemo -faceit -json=false testdata      # сверка счёта, K/D/A и ADR с FACEIT
+go run ./cmd/parsedemo -faceit -json=false testdata      # сверка счёта, K/D/A, HS, урона и ADR с FACEIT; все демки — make verify-demos
 go run ./cmd/parsedemo -csda <папка> -json=false testdata # сверка метрик с cs-demo-analyzer
 go run ./cmd/parsedemo -scope testdata/scope.json -json=false testdata # сверка стрельбы со Scope.gg
 go run ./cmd/parsedemo -findings testdata testdata/3-4lvl testdata/7-8lvl > testdata/findings.txt # находки всех игроков
@@ -91,8 +92,8 @@ go run ./cmd/parsedemo -places testdata/maps                # зоны карт 
 ```
 
 - С `-faceit` ID матча берётся из имени файла (`<match_id>-1-1.dem.zst`, как у FACEIT), ключ — из `.env`.
-  Если счёт или K/D/A не совпали, утилита завершается с кодом 1; HS, урон и ADR — для справки, расхождение
-  помечено `*`.
+  Если не совпали счёт, K/D/A, HS, урон или ADR, утилита пишет `MISMATCH` и завершается с кодом 1; разошедшиеся
+  HS, урон и ADR ещё и помечены `*`. По всем демкам сразу — `make verify-demos`.
 - С `-csda` в папке лежит JSON cs-demo-analyzer на каждую демку. Как его собрать и запустить и почему его
   цифры местами другие — `docs/notes/cs-demo-analyzer.md` и `docs/DECISIONS.md`. Расхождения с ним
   код выхода не меняют.

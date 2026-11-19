@@ -112,9 +112,10 @@ type Death struct {
 	// Killer is the SteamID64 of the player who killed, 0 for a bot no
 	// player controls.
 	Killer uint64
-	// Assister is the SteamID64 of the player who got the assist, as FACEIT
-	// counts assists, 0 if nobody did; FlashAssist means he got it for
-	// blinding the victim.
+	// Assister is the SteamID64 of the player who got the assist of the
+	// game on the kill, 0 if nobody did; a bot that a player controlled is
+	// that player, as everywhere in an Analysis. FlashAssist means he got
+	// it for blinding the victim.
 	Assister    uint64
 	FlashAssist bool
 	// Elapsed is the time since the freeze time ended, in seconds. Clock is
@@ -153,7 +154,8 @@ type Death struct {
 	// victim, the killer among them.
 	EnemiesNear int
 	// DamageBefore is the damage the victim dealt to enemies in the round
-	// up to the death; Dry means none and an untraded death.
+	// up to the death, through a bot he controlled too; Dry means none and
+	// an untraded death.
 	DamageBefore int
 	Dry          bool
 	// Where the two stood, and their weapons.
@@ -415,7 +417,10 @@ func (c *counter) deaths(a *Analysis, r demo.Round, info RoundInfo, re roundInde
 	for i, k := range roundKills {
 		for ; hit < len(re.hits) && m.Hits[re.hits[hit]].Tick <= k.Tick; hit++ {
 			h := m.Hits[re.hits[hit]]
-			if p := c.player(h.Attacker); p != nil && enemies(h.Attacker, &h.Victim) {
+			if !enemies(h.Attacker, &h.Victim) {
+				continue
+			}
+			if p := c.coached(coach(*h.Attacker)); p != nil {
 				damage[p.id] += h.Damage
 			}
 		}
@@ -454,8 +459,10 @@ func (c *counter) deaths(a *Analysis, r demo.Round, info RoundInfo, re roundInde
 		if killer := c.coached(coach(*k.Killer)); killer != nil {
 			d.Killer = killer.id
 		}
-		if as := c.player(k.Assister); as != nil && enemies(k.Assister, &k.Victim) {
-			d.Assister, d.FlashAssist = as.id, k.FlashAssist
+		if enemies(k.Assister, &k.Victim) {
+			if as := c.coached(coach(*k.Assister)); as != nil {
+				d.Assister, d.FlashAssist = as.id, k.FlashAssist
+			}
 		}
 		d.Elapsed, d.Clock, d.Planted = mc.of(r, k.Tick)
 		for _, g := range k.Grenades {
@@ -544,7 +551,7 @@ func (c *counter) tradeChance(a *Analysis, death int, p *player, k demo.Kill, re
 		if h.Tick < from || h.Tick > to || h.Attacker == nil || !enemies(h.Attacker, &h.Victim) {
 			continue
 		}
-		attacker, victim := who{id: h.Attacker.ID, bot: h.Attacker.Bot}, coach(h.Victim)
+		attacker, victim := coach(*h.Attacker), coach(h.Victim)
 		switch {
 		case attacker == me && victim == killer:
 			ch.Hit = true

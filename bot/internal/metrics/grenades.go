@@ -36,11 +36,11 @@ func (c *counter) grenades(r demo.Round, e events, side func(*player) *Stats) {
 	dealt := make(map[source]*GrenadeHit)
 	hurt := make(map[source]map[body]bool)
 	for _, h := range e.hits {
-		if h.Weapon != demo.HEGrenade && h.Class != demo.ClassFire {
+		if (h.Weapon != demo.HEGrenade && h.Class != demo.ClassFire) || !enemies(h.Attacker, &h.Victim) {
 			continue
 		}
-		p := c.player(h.Attacker)
-		if p == nil || !enemies(h.Attacker, &h.Victim) {
+		p := c.coached(coach(*h.Attacker))
+		if p == nil {
 			continue
 		}
 		side(p).GrenadeDamage += h.Damage

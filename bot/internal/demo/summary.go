@@ -40,9 +40,9 @@ func enemies(a, b *playerRef) bool {
 
 type killEvent struct {
 	Tick        int
-	Killer      *playerRef // nil for the world: the bomb, a fall
+	Killer      *playerRef // whose body killed, nil for the world: the bomb, a fall
 	Victim      *playerRef // whose body died
-	Assister    *playerRef // flash assists included
+	Assister    *playerRef // whose body got the assist, flash assists included
 	FlashAssist bool
 	Headshot    bool
 	Disconnect  bool // the victim left the server
@@ -108,7 +108,7 @@ type sightKey struct{ spotter, target body }
 
 type hurtEvent struct {
 	Tick     int
-	Attacker *playerRef // nil for the world
+	Attacker *playerRef // whose body hit, nil for the world
 	Victim   *playerRef // whose body was hit
 	Damage   int        // health taken, no more than the victim had
 	HitGroup HitGroup
@@ -220,6 +220,8 @@ func (b *builder) see(p *playerRef) *playerStats {
 
 // kill counts a death of the victim, whatever killed them, and a kill and
 // an assist only against an enemy: a teamkill or a suicide gives no kill.
+// A bot is no player, whoever controls it: what a player does through a bot
+// he took over, and the bot's death, are the bot's, as FACEIT counts them.
 // It logs the kill as an event of the current round.
 func (b *builder) kill(k killEvent) {
 	b.tick = max(b.tick, k.Tick)
@@ -416,6 +418,7 @@ func (b *builder) endSightings(tick int) {
 }
 
 // hurt counts damage to enemies only, bots among them, and logs the hit.
+// The damage of a bot is nobody's, a player's through it included.
 func (b *builder) hurt(h hurtEvent) {
 	b.tick = max(b.tick, h.Tick)
 	b.see(h.Victim)
