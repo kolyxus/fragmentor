@@ -587,6 +587,44 @@ func TestBuilderKillGrenades(t *testing.T) {
 
 func at(p *playerRef, x float64) positionEvent { return positionEvent{Body: *p, X: x, Y: 2 * x, Z: 10} }
 
+// A player who controls a bot plays in its body. Player 2 left, bot 12
+// played for him, and he came back in the round and took the bot over: he
+// did not die in the round, and the game lists him alive with no pawn of
+// his own, at the origin of the map, while he controls the bot and after it
+// dies. Seen on a FACEIT demo of Dust2.
+func TestBuilderPositionsOfAPlayerInABot(t *testing.T) {
+	b := newBuilder()
+	ct1, ct2, ct3, t1 := human(1, CT), human(2, CT), human(3, CT), human(4, T)
+	bot := &playerRef{ID: 12, Name: "BOT", Side: CT, Bot: true}
+	b.freezeTimeEnd(100, []playerRef{*ct1, *bot, *ct3, *t1})
+	inBot := *bot
+	inBot.Controller = 2
+	ghost := positionEvent{Body: *ct2} // at 0, 0, 0
+	b.kill(killEvent{Tick: 200, Killer: t1, Victim: ct1, Positions: []positionEvent{at(ct1, 1), at(&inBot, 3), ghost, at(ct3, 5), at(t1, 4)}})
+	b.kill(killEvent{Tick: 300, Killer: t1, Victim: &inBot, Positions: []positionEvent{at(&inBot, 3), ghost, at(ct3, 5), at(t1, 4)}})
+	// The bot is dead, and the game still lists player 2.
+	b.kill(killEvent{Tick: 350, Killer: t1, Victim: ct3, Positions: []positionEvent{ghost, at(ct3, 5), at(t1, 4)}})
+	b.roundEnd(roundEndEvent{Tick: 400, Winner: T, Players: []playerRef{*ct1, *ct2, *ct3, *t1}})
+	// The next round player 2 plays in his own body.
+	b.roundStart(500)
+	b.freezeTimeEnd(600, []playerRef{*ct1, *ct2, *ct3, *t1})
+	b.kill(killEvent{Tick: 700, Killer: t1, Victim: ct2, Positions: []positionEvent{at(ct1, 1), at(ct2, 2), at(ct3, 5), at(t1, 4)}})
+	b.roundEnd(roundEndEvent{Tick: 800, Winner: T, Players: []playerRef{*ct1, *ct2, *ct3, *t1}})
+	m := b.build(24, game(b))
+
+	ref := func(p *playerRef, x float64) Position { return Position{Body: *p.export(), X: x, Y: 2 * x, Z: 10} }
+	for i, want := range [][]Position{
+		{ref(ct1, 1), ref(&inBot, 3), ref(ct3, 5), ref(t1, 4)},
+		{ref(&inBot, 3), ref(ct3, 5), ref(t1, 4)},
+		{ref(ct3, 5), ref(t1, 4)},
+		{ref(ct1, 1), ref(ct2, 2), ref(ct3, 5), ref(t1, 4)},
+	} {
+		if got := m.Kills[i].Positions; !slices.Equal(got, want) {
+			t.Errorf("positions of kill %d = %+v, want %+v: player 2 is no body while he plays in the bot and after it dies", i+1, got, want)
+		}
+	}
+}
+
 func TestBuilderKillContext(t *testing.T) {
 	b := newBuilder()
 	ct1, ct2, t1, t2 := human(1, CT), human(2, CT), human(4, T), human(5, T)

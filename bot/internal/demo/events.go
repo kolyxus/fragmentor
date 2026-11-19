@@ -73,7 +73,9 @@ type Kill struct {
 	KillerBlind  bool `json:"killer_blind,omitempty"`
 	// Positions is where every body alive at the moment stood, the victim
 	// and the killer among them. A body that died earlier in the round is
-	// not alive, even if the game had not removed it yet.
+	// not alive, even if the game had not removed it yet; a player who
+	// controls a bot, or did in the round, has no body of his own, even if
+	// the game listed him alive.
 	Positions []Position `json:"positions,omitempty"`
 }
 

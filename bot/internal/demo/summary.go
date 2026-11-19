@@ -174,9 +174,11 @@ type builder struct {
 	plantSite string
 	// seeing holds the sightings in progress, by their index in sightings.
 	// dead is the bodies that died in the round, which neither see nor are
-	// seen any more.
-	seeing map[sightKey]int
-	dead   map[body]bool
+	// seen any more. botPlayers is the players who controlled a bot in the
+	// round, by SteamID64: none has a body of his own until the next round.
+	seeing     map[sightKey]int
+	dead       map[body]bool
+	botPlayers map[uint64]bool
 	// tick is the last tick of an event, where the sightings still in
 	// progress end when the demo does.
 	tick int
@@ -184,10 +186,11 @@ type builder struct {
 
 func newBuilder() *builder {
 	return &builder{
-		players: make(map[uint64]*playerStats),
-		cur:     1,
-		seeing:  make(map[sightKey]int),
-		dead:    make(map[body]bool),
+		players:    make(map[uint64]*playerStats),
+		cur:        1,
+		seeing:     make(map[sightKey]int),
+		dead:       make(map[body]bool),
+		botPlayers: make(map[uint64]bool),
 	}
 }
 
@@ -240,14 +243,23 @@ func (b *builder) kill(k killEvent) {
 	if k.Victim == nil {
 		return // a broken demo: a death of nobody tells nothing
 	}
+	// A bot that a player controls is among the positions while alive, as
+	// it dies too: the victim is.
+	for i := range k.Positions {
+		b.inBot(&k.Positions[i].Body)
+	}
 	var positions []Position
 	for _, p := range k.Positions {
 		// The game removes the dead after the events of the tick: a body
 		// that died earlier in the round, the same tick among them, is
-		// gone.
-		if !b.dead[bodyOf(&p.Body)] {
-			positions = append(positions, Position{Body: *p.Body.export(), X: p.X, Y: p.Y, Z: p.Z})
+		// gone. A player who controls a bot, or did in the round, has no
+		// body of his own: the game may still list him alive, at the origin
+		// of the map, as a player back on the server who took over the bot
+		// that played for him and so did not die in the round.
+		if b.dead[bodyOf(&p.Body)] || (p.Body.human() && b.botPlayers[p.Body.ID]) {
+			continue
 		}
+		positions = append(positions, Position{Body: *p.Body.export(), X: p.X, Y: p.Y, Z: p.Z})
 	}
 	b.kills = append(b.kills, Kill{
 		Tick:          k.Tick,
@@ -273,6 +285,15 @@ func (b *builder) kill(k killEvent) {
 		Positions:     positions,
 	})
 	b.gone(k.Tick, bodyOf(k.Victim), !k.Disconnect)
+}
+
+// inBot notes the controller of r, a bot that a player controls: a player
+// takes over a bot only once dead, and nobody comes back to life in the
+// round, so he has no body of his own until the next round.
+func (b *builder) inBot(r *playerRef) {
+	if r != nil && r.Bot && r.Controller != 0 {
+		b.botPlayers[r.Controller] = true
+	}
 }
 
 // grenade logs a grenade thrown in the current round and returns its ID, 0
@@ -450,6 +471,7 @@ func (b *builder) roundStart(tick int) {
 		b.cur, b.ended = len(b.rounds)+1, false
 		b.endSightings(tick)
 		clear(b.dead)
+		clear(b.botPlayers)
 	}
 }
 
