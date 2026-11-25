@@ -228,7 +228,7 @@ func collect(a *metrics.Analysis) *data {
 		if killer && dt.TradeKill {
 			t := of(TradeKills, ki)
 			t.x++
-			t.events = append(t.events, event{count: 1, score: 1, ev: kill})
+			t.events = append(t.events, event{count: 1, ev: kill})
 		}
 		vi, ok := index[dt.Victim]
 		if !ok {
@@ -270,7 +270,7 @@ func collect(a *metrics.Analysis) *data {
 				t := of(OpeningWins, ki)
 				t.n++
 				t.x++
-				t.events = append(t.events, event{count: 1, score: 1, ev: kill})
+				t.events = append(t.events, event{count: 1, ev: kill})
 			}
 		}
 		// The deaths of a place on a side, those in a crowd of enemies aside.
@@ -312,7 +312,7 @@ func collect(a *metrics.Analysis) *data {
 		}
 		if fb.Enemies > 0 {
 			u := &d.tallies[MeasureEnemyFlashes][i]
-			u.events = append(u.events, event{count: float64(fb.Enemies), score: float64(fb.Enemies), ev: ev})
+			u.events = append(u.events, event{count: float64(fb.Enemies), ev: ev})
 		}
 	}
 	for _, g := range a.GrenadeHits {
@@ -329,7 +329,7 @@ func collect(a *metrics.Analysis) *data {
 			ev.Detail = DetailFire
 		}
 		t := &d.tallies[MeasureGrenadeDamage][i]
-		t.events = append(t.events, event{count: float64(g.Damage) / DamageUnit, score: float64(g.Damage), ev: ev})
+		t.events = append(t.events, event{count: float64(g.Damage) / DamageUnit, ev: ev})
 	}
 
 	// The shooting.
@@ -406,7 +406,7 @@ func collect(a *metrics.Analysis) *data {
 			}
 			t := of(MultiKills, i)
 			t.x++
-			t.events = append(t.events, event{count: 1, score: float64(kills), ev: ev})
+			t.events = append(t.events, event{count: 1, ev: ev})
 		}
 	}
 	// The clutches won: a 1vX weighs X.
@@ -419,7 +419,7 @@ func collect(a *metrics.Analysis) *data {
 		x := float64(min(cl.Enemies, 5))
 		t := of(Clutches, i)
 		t.x += x
-		t.events = append(t.events, event{count: x, score: x, ev: Evidence{
+		t.events = append(t.events, event{count: x, ev: Evidence{
 			Round: cl.Round, Clock: cl.Clock, Planted: cl.Planted, Tick: cl.Tick, Won: true, Buy: buy, Count: cl.Enemies,
 		}})
 	}

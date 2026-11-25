@@ -168,24 +168,7 @@ func (r renderer) rounds(n int) string {
 // the match.
 func (r renderer) writeMoments(b *strings.Builder, id string) {
 	f := r.byID[id]
-	ev := slices.Clone(f.Evidence)
-	slices.SortStableFunc(ev, func(a, b findings.Evidence) int {
-		switch {
-		case a.Impact > b.Impact:
-			return -1
-		case a.Impact < b.Impact:
-			return 1
-		}
-		return 0
-	})
-	ev = ev[:min(len(ev), MaxMoments)]
-	slices.SortStableFunc(ev, func(a, b findings.Evidence) int {
-		if a.Round != b.Round {
-			return a.Round - b.Round
-		}
-		return a.Tick - b.Tick
-	})
-	for _, e := range ev {
+	for _, e := range f.BestMoments(MaxMoments) {
 		b.WriteString("\n   · " + r.moment(f, e))
 	}
 }

@@ -252,7 +252,7 @@ func TestImpact(t *testing.T) {
 	// A strength weighs its z, whatever its events.
 	d = newData()
 	d.others(OpeningWins, 3, 6)
-	d.set(OpeningWins, 0, 6, 6).events = []event{{count: 6, impact: 0, score: 1}}
+	d.set(OpeningWins, 0, 6, 6).events = []event{{count: 6, impact: 0}}
 	if f, ok := d.judge(ruleOf(t, OpeningWins), 0, History{}); !ok || !near(f.Impact, 1) || !near(f.Weight, f.Z) {
 		t.Errorf("fired %t, impact %v, weight %v, z %v", ok, f.Impact, f.Weight, f.Z)
 	}
@@ -311,7 +311,7 @@ func TestEvidence(t *testing.T) {
 		{count: 1, impact: 1.25, ev: Evidence{Round: 5, Tick: 5000}},
 		{count: 1, impact: 1, ev: Evidence{Round: 6, Tick: 100}},
 	}
-	got := evidence(evs, Mistake, testTickRate)
+	got := evidence(evs, Finding{Rule: DryDeath, Kind: Mistake}, testTickRate)
 	var rounds []int
 	for _, e := range got {
 		rounds = append(rounds, e.Round)
@@ -325,30 +325,30 @@ func TestEvidence(t *testing.T) {
 		t.Errorf("the moment of round 9 = %+v, want the tick 5 s before it and its impact", e)
 	}
 	// A moment in the first seconds of a demo goes to its start.
-	if e := evidence(evs[7:], Mistake, testTickRate)[0]; e.Goto != 0 {
+	if e := evidence(evs[7:], Finding{Rule: DryDeath, Kind: Mistake}, testTickRate)[0]; e.Goto != 0 {
 		t.Errorf("goto = %d for the tick 100, want 0", e.Goto)
 	}
 	// A strength shows its biggest moments, and keeps those of no impact.
 	strong := []event{
-		{count: 1, score: 3, ev: Evidence{Round: 1}},
-		{count: 1, score: 5, ev: Evidence{Round: 2}},
-		{count: 1, score: 4, ev: Evidence{Round: 3}},
+		{count: 1, ev: Evidence{Count: 3, Round: 1}},
+		{count: 1, ev: Evidence{Count: 5, Round: 2}},
+		{count: 1, ev: Evidence{Count: 4, Round: 3}},
 	}
-	if got := evidence(strong, Strength, testTickRate); len(got) != 3 || got[0].Round != 1 || got[2].Round != 3 {
+	if got := evidence(strong, Finding{Rule: MultiKills, Kind: Strength}, testTickRate); len(got) != 3 || got[0].Round != 1 || got[2].Round != 3 {
 		t.Errorf("the moments of a strength = %+v", got)
 	}
 	// The smallest of seven stays out, though it comes first and in the
 	// last round.
-	seven := append([]event{{count: 1, score: 1, ev: Evidence{Round: 9}}}, strong...)
+	seven := append([]event{{count: 1, ev: Evidence{Count: 1, Round: 9}}}, strong...)
 	seven = append(seven, strong...)
-	if got := evidence(seven, Strength, testTickRate); len(got) != MaxEvidence || got[len(got)-1].Round == 9 {
+	if got := evidence(seven, Finding{Rule: MultiKills, Kind: Strength}, testTickRate); len(got) != MaxEvidence || got[len(got)-1].Round == 9 {
 		t.Errorf("%d moments, the smallest among them: %+v", len(got), got)
 	}
 	// An excused death shows no mistake, even when there is room for it.
-	if got := evidence(evs[:3], Mistake, testTickRate); len(got) != 2 || got[0].Round != 1 || got[1].Round != 9 {
+	if got := evidence(evs[:3], Finding{Rule: DryDeath, Kind: Mistake}, testTickRate); len(got) != 2 || got[0].Round != 1 || got[1].Round != 9 {
 		t.Errorf("the moments of two deaths and an excused one = %+v, want rounds 1 and 9", got)
 	}
-	if got := evidence(nil, Mistake, testTickRate); len(got) != 0 {
+	if got := evidence(nil, Finding{Rule: DryDeath, Kind: Mistake}, testTickRate); len(got) != 0 {
 		t.Errorf("moments of no events: %+v", got)
 	}
 }

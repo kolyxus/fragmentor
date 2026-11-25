@@ -1,6 +1,8 @@
 package review
 
 import (
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,6 +11,68 @@ import (
 	"github.com/kolyxus/fragmentor/bot/internal/findings"
 	"github.com/kolyxus/fragmentor/bot/internal/i18n"
 )
+
+// The checkpoint cases keep only the counts and impacts needed to reproduce
+// the selection. The tick numbers are synthetic.
+func TestRenderMomentSelection(t *testing.T) {
+	gotoTick := regexp.MustCompile(`demo_gototick (\d+)`)
+	for _, tc := range []struct {
+		name     string
+		rule     findings.RuleID
+		moments  []findings.Evidence
+		wantGoto []string
+	}{
+		{"K2_moving_shots", findings.MovingShots, []findings.Evidence{
+			{Round: 2, Tick: 2000, Count: 1, Of: 6, Impact: 1},
+			{Round: 5, Tick: 5000, Count: 1, Of: 3, Impact: 1},
+			{Round: 9, Tick: 9000, Count: 4, Of: 9, Impact: 1},
+			{Round: 18, Tick: 18000, Count: 3, Of: 9, Impact: 1.25},
+			{Round: 19, Tick: 19000, Count: 1, Of: 8, Impact: 1.875},
+		}, []string{"8680", "17680", "18680"}},
+		{"R6_useful_flashes", findings.UsefulGrenades, []findings.Evidence{
+			{Round: 1, Tick: 1000, Enemies: 1},
+			{Round: 1, Tick: 1100, Enemies: 1, Teammates: 1},
+			{Round: 7, Tick: 7000, Enemies: 1},
+			{Round: 18, Tick: 18000, Enemies: 3},
+			{Round: 20, Tick: 20000, Enemies: 3, Teammates: 1},
+		}, []string{"680", "17680", "19680"}},
+		{"equal_weight_out_of_order", findings.UsefulGrenades, []findings.Evidence{
+			{Round: 4, Tick: 4100, Enemies: 2},
+			{Round: 4, Tick: 4000, Enemies: 2},
+			{Round: 2, Tick: 2000, Enemies: 2},
+			{Round: 1, Tick: 1000, Enemies: 2},
+		}, []string{"680", "1680", "3680"}},
+		{"two_moments", findings.MovingShots, []findings.Evidence{
+			{Round: 2, Tick: 2000, Count: 4, Of: 5, Impact: 1},
+			{Round: 1, Tick: 1000, Count: 2, Of: 5, Impact: 1},
+		}, []string{"680", "1680"}},
+		{"empty", findings.MovingShots, nil, nil},
+	} {
+		for i := range tc.moments {
+			tc.moments[i].Goto = tc.moments[i].Tick - 320
+		}
+		f := facts()
+		if tc.rule == findings.MovingShots {
+			f.Findings[1].Evidence = tc.moments
+			f.Review = findings.ReviewFacts{Mistakes: []findings.PickFacts{{Finding: "f2"}}}
+		} else {
+			f.Findings[3].Evidence = tc.moments
+			f.Review = findings.ReviewFacts{Strength: &findings.PickFacts{Finding: "f4"}}
+		}
+		for _, lang := range []i18n.Lang{i18n.RU, i18n.EN} {
+			t.Run(tc.name+"/"+string(lang), func(t *testing.T) {
+				rendered := Render(f, lang, content.Default())
+				var got []string
+				for _, m := range gotoTick.FindAllStringSubmatch(rendered, -1) {
+					got = append(got, m[1])
+				}
+				if !slices.Equal(got, tc.wantGoto) {
+					t.Errorf("shown ticks %v, want %v", got, tc.wantGoto)
+				}
+			})
+		}
+	}
+}
 
 // facts is a made-up review: the lone deaths told with the untraded ones,
 // the shots on the move as a habit, and the useful flashes.

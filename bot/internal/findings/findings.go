@@ -469,10 +469,7 @@ type event struct {
 	count float64
 	// impact is what one of them weighs for a mistake.
 	impact float64
-	// score orders the events of a strength, which all weigh one: the kills
-	// of a round, the enemies blinded.
-	score float64
-	ev    Evidence
+	ev     Evidence
 }
 
 // meanImpact returns what an event of the tally weighs on average.
@@ -527,7 +524,7 @@ func (d *data) judge(rl rule, i int, h History) (Finding, bool) {
 		if f.Weight <= 0 || fired && f.Weight <= best.Weight {
 			continue
 		}
-		f.Evidence = evidence(t.events, rl.Kind, d.a.TickRate)
+		f.Evidence = evidence(t.events, f, d.a.TickRate)
 		best, fired = f, true
 	}
 	return best, fired
@@ -556,30 +553,62 @@ func habit(rl rule, m measure, id string, h History, rate float64) bool {
 // evidence returns the moments of the events that show a finding best:
 // MaxEvidence at most, the heaviest of a mistake and the biggest of a
 // strength, in the order of the match.
-func evidence(events []event, kind Kind, tickRate float64) []Evidence {
-	weight := func(e event) float64 {
-		if kind == Mistake {
-			return e.count * e.impact
+func evidence(events []event, f Finding, tickRate float64) []Evidence {
+	moments := make([]Evidence, 0, len(events))
+	for _, event := range events {
+		if f.Kind == Mistake && event.impact <= 0 {
+			continue
 		}
-		return e.score
-	}
-	// An event that weighs nothing, an excused death, shows no mistake.
-	sorted := slices.DeleteFunc(slices.Clone(events), func(e event) bool { return kind == Mistake && e.impact <= 0 })
-	slices.SortStableFunc(sorted, func(a, b event) int { return cmp.Compare(weight(b), weight(a)) })
-	if len(sorted) > MaxEvidence {
-		sorted = sorted[:MaxEvidence]
-	}
-	slices.SortStableFunc(sorted, func(a, b event) int {
-		return cmp.Or(cmp.Compare(a.ev.Round, b.ev.Round), cmp.Compare(a.ev.Tick, b.ev.Tick))
-	})
-	out := make([]Evidence, 0, len(sorted))
-	for _, e := range sorted {
-		ev := e.ev
-		ev.Impact = e.impact
+		ev := event.ev
+		ev.Impact = event.impact
 		ev.Goto = GotoTick(ev.Tick, tickRate)
-		out = append(out, ev)
+		moments = append(moments, ev)
 	}
-	return out
+	return f.selectMoments(moments, MaxEvidence)
+}
+
+// BestMoments selects up to limit moments by weight and displays them in
+// match order. Earlier moments win ties. Events at the same round and tick
+// with equal weight retain their order in the journal or saved facts.
+func (f Finding) BestMoments(limit int) []Evidence {
+	return f.selectMoments(slices.Clone(f.Evidence), limit)
+}
+
+// selectMoments owns its input and keeps only the selected evidence in memory.
+func (f Finding) selectMoments(moments []Evidence, limit int) []Evidence {
+	matchOrder := func(a, b Evidence) int {
+		return cmp.Or(cmp.Compare(a.Round, b.Round), cmp.Compare(a.Tick, b.Tick))
+	}
+	slices.SortStableFunc(moments, func(a, b Evidence) int {
+		return cmp.Or(cmp.Compare(f.momentWeight(b), f.momentWeight(a)), matchOrder(a, b))
+	})
+	selected := min(max(0, limit), len(moments))
+	if selected < cap(moments) {
+		moments = slices.Clone(moments[:selected])
+	}
+	slices.SortStableFunc(moments, matchOrder)
+	return moments
+}
+
+// momentWeight uses the fields available in version 1 of the saved facts.
+func (f Finding) momentWeight(e Evidence) float64 {
+	switch f.Rule {
+	case MovingShots:
+		return float64(e.Count) * e.Impact
+	case UsefulGrenades:
+		if e.Detail == DetailHE || e.Detail == DetailFire {
+			return float64(e.Count)
+		}
+		return float64(e.Enemies)
+	case MultiKills:
+		return float64(e.Count)
+	case Clutches:
+		return float64(min(e.Count, 5))
+	case OpeningWins, TradeKills:
+		return 1
+	default:
+		return e.Impact
+	}
 }
 
 // compare puts the measure of player i next to the lobby, his teammates,
