@@ -1,0 +1,29 @@
+# Only the owner accesses the server and deploys. Match ordinary command forms
+# without restricting unrelated make targets. General restrictions are in AGENTS.md.
+prefix_rule(
+    pattern = [["ssh", "ssh.exe", "scp", "scp.exe"]],
+    decision = "forbidden",
+    justification = "Server access belongs to the project owner.",
+)
+
+make_commands = ["make", "make.exe", "gmake", "gmake.exe", "mingw32-make", "mingw32-make.exe"]
+dry_run = ["-n", "--just-print", "--dry-run", "--recon"]
+bot_paths = ["bot", "./bot", ".\\bot", "bot/", "bot\\", "./bot/", "."]
+directory = ["-C", "--directory"]
+joined_directory = ["-Cbot", "-C./bot", "-C.\\bot", "--directory=bot", "--directory=./bot"]
+
+def forbid_deploy(options):
+    prefix_rule(
+        pattern = [make_commands] + options + ["deploy"],
+        decision = "forbidden",
+        justification = "Only the project owner runs the deploy target, including dry runs.",
+    )
+
+forbid_deploy([])
+forbid_deploy([dry_run])
+forbid_deploy([directory, bot_paths])
+forbid_deploy([directory, bot_paths, dry_run])
+forbid_deploy([dry_run, directory, bot_paths])
+forbid_deploy([joined_directory])
+forbid_deploy([joined_directory, dry_run])
+forbid_deploy([dry_run, joined_directory])

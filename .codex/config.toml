@@ -1,0 +1,15 @@
+# Для доверенной рабочей копии с обычным профилем :workspace.
+# Сохраняем его ограничения сети, служебных каталогов и доступных корней.
+default_permissions = "fragmentor"
+
+[permissions.fragmentor]
+extends = ":workspace"
+
+[permissions.fragmentor.filesystem]
+glob_scan_max_depth = 64
+
+[permissions.fragmentor.filesystem.":workspace_roots"]
+"bot/.env" = "deny"
+"**/.env" = "deny"
+"**/.env.local" = "deny"
+"**/.env.production" = "deny"
