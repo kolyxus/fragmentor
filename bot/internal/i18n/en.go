@@ -135,11 +135,11 @@ Level %d · %d ELO`,
 	CommandMatches: "Your latest matches",
 	CommandHelp:    "What the bot can do",
 
-	Description: `Fragmentor is an AI coach for CS2. It reads the demos of your FACEIT matches and explains where you lose rounds and what to practice this week: your three biggest mistakes with numbers and one drill, compared with players at your level.
+	Description: `Fragmentor is a coach for CS2 matches on FACEIT. A breakdown highlights up to three mistakes, shows the rounds where they happened and suggests a drill for the biggest one. It compares your stats with the other players in the same match.
 
 The bot is in development. Start it to join the beta waitlist.`,
 
-	ShortDescription: "AI coach for CS2. Reads the demos of your FACEIT matches and explains where you lose rounds.",
+	ShortDescription: "A CS2 coach that reviews your FACEIT demos and helps you choose what to practice.",
 
 	Review: reviewEN,
 }

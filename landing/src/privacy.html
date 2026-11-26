@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Политика конфиденциальности — Fragmentor</title>
-<meta name="description" content="Какие данные собирает Fragmentor, зачем они нужны и как их удалить.">
+<meta name="description" content="Какие данные Fragmentor сохраняет после матча и как запросить копию, исправление или удаление.">
 <link rel="canonical" href="https://fragmentor.tech/privacy.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Fragmentor">
@@ -241,7 +241,7 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
 <a class="skip" href="#main"><span data-l="ru">К содержанию</span><span data-l="en">Skip to content</span></a>
 
 <header class="wrap top">
-  <a class="brand" href="./"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5v7M16 22.5v7M2.5 16h7M22.5 16h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/><circle class="mark-dot" cx="16" cy="16" r="4.6"/></svg><span>Fragmentor</span></a>
+  <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5v7M16 22.5v7M2.5 16h7M22.5 16h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/><circle class="mark-dot" cx="16" cy="16" r="4.6"/></svg><span>Fragmentor</span></a>
   <nav class="nav" aria-label="Fragmentor">
     <div class="lang" role="group" aria-label="Язык / Language">
       <button type="button" data-set-lang="ru" lang="ru" aria-pressed="true">RU</button>
@@ -252,105 +252,75 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
 
 <main id="main" class="wrap">
 <article class="doc">
-  <a class="back" href="./"><span data-l="ru">На главную</span><span data-l="en">Back to home</span></a>
+  <a class="back" href="index.html"><span data-l="ru">На главную</span><span data-l="en">Back to home</span></a>
 
   <div data-l="ru" lang="ru">
     <h1>Политика конфиденциальности</h1>
-    <p class="date">Действует с 29 октября 2026 года.</p>
-    <p class="intro">Здесь описано, какие данные собирает Fragmentor (Telegram-бот @fragmentor_ai_bot и сайт fragmentor.tech), зачем они нужны и как их удалить.</p>
+    <p class="date">Редакция от 25 ноября 2026 года.</p>
+    <p class="intro">Когда Fragmentor разбирает матч CS2 на FACEIT, в его истории появляются игровые показатели всех участников. Это касается и тебя, если ты играл в таком матче, даже если ты никогда не открывал наш Telegram-бот.</p>
 
-    <h2>Кто мы</h2>
-    <p>Fragmentor — независимый проект частного разработчика. Он не связан с FACEIT, Valve или Telegram. По любым вопросам о данных пиши на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>.</p>
+    <h2>Кто обрабатывает данные</h2>
+    <p>Fragmentor — независимый сервис частного разработчика. Он отвечает за сайт fragmentor.tech и бот @fragmentor_ai_bot. По вопросам о своих данных пиши разработчику на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>.</p>
 
-    <h2>Какие данные мы обрабатываем</h2>
+    <h2>Что остаётся после матча</h2>
+    <p>Из демки и состава на FACEIT мы получаем карту, счёт, время матча, команды и события раундов. Например, журнал сохраняет выстрелы, урон и позиции игроков в момент убийства. В самом журнале у игроков номера мест. Отдельная запись связывает место с матчем, SteamID64, показателями игрока, а также с FACEIT ID и уровнем, если они есть в составе.</p>
+    <p>Эта история нужна, чтобы видеть прогресс игрока между матчами и пересчитывать показатели при изменении формул. В будущем она также позволит сравнивать игру с результатами других игроков того же уровня FACEIT. Связанные с игроком показатели храним, пока они нужны для этих целей. Фиксированного срока автоматической очистки игровой истории нет.</p>
+
+    <h2>Когда ты пользуешься ботом</h2>
     <ul>
-      <li><b>Данные Telegram:</b> ID пользователя, имя и юзернейм, а также сообщения и команды, которые ты отправляешь боту.</li>
-      <li><b>Данные FACEIT:</b> ник и ID игрока, уровень, публичная информация о матчах и статистика, которую мы получаем через официальные API FACEIT.</li>
-      <li><b>Демки матчей:</b> файлы записей матчей, которые мы скачиваем для разбора и удаляем сразу после него.</li>
-      <li><b>Результаты разборов:</b> посчитанные показатели и тексты разборов по твоим матчам.</li>
-      <li><b>Подписка:</b> статус и срок подписки. Платежи проводит сервис Tribute, данные банковских карт мы не получаем и не храним.</li>
+      <li>Для листа ожидания и работы бота сохраняем твой числовой ID в Telegram, юзернейм, если он есть, язык, даты регистрации и записи в лист ожидания. Если выберешь часовой пояс, запомним смещение времени.</li>
+      <li>При привязке сохраняем публичный ник FACEIT, FACEIT ID, SteamID64 и дату привязки. Для привязанных игровых аккаунтов сохраняем также факты для разбора, например раунд, в котором повторилась ошибка.</li>
+      <li>Бот читает присланные команды и ссылки. Чтобы показать статус разбора, в базе остаются номер задачи, ID матча и сообщения о статусе, язык, время, результат или причина сбоя. Демку читаем во время разбора без сохранения файла. Подписанную ссылку очищаем из записи задачи после её завершения.</li>
     </ul>
+    <p>Для игровой аналитики мы не просим настоящее имя, адрес, телефон или документы. Настоящее имя и тексты переписки не входят в профиль игрока в базе бота. Если ты пишешь нам по почте, мы получаем адрес отправителя и содержание обращения, чтобы ответить.</p>
 
-    <h2>Зачем они нужны</h2>
-    <p>Чтобы разбирать твои матчи и присылать разборы, сравнивать показатели с игроками твоего уровня, вести подписку и отвечать на обращения. Мы не используем данные для рекламы и не продаём их.</p>
+    <h2>Какие сервисы участвуют</h2>
+    <p>Через API FACEIT мы запрашиваем публичные профили и данные матчей. Демку получаем из хранилища FACEIT по присланной игроком ссылке. Telegram доставляет сообщения и ответы бота. Хостинг обеспечивает работу бота, сайта и почты. На хостинге могут оставаться служебные журналы и резервные копии базы. Данные игроков не продаём и не используем для рекламы.</p>
 
-    <h2>Кому мы их передаём</h2>
-    <p>Только сервисам, без которых Fragmentor не может работать:</p>
-    <ul>
-      <li>FACEIT — источник данных о матчах;</li>
-      <li>Telegram — платформа, на которой работает бот;</li>
-      <li>хостинг-провайдер — на его серверах работает сервис;</li>
-      <li>провайдер языковой модели — получает обезличенные показатели матча без ников и ID, чтобы написать текст разбора;</li>
-      <li>Tribute — приём платежей.</li>
-    </ul>
+    <h2>Как получить, исправить или удалить свои данные</h2>
+    <p>Напиши на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>. Укажи свой ник FACEIT или SteamID64 и что ты хочешь сделать. Если вопрос только о Telegram, укажи свой аккаунт в Telegram. Можно запросить копию, исправление, ограничение обработки или удаление, а также возразить против обработки. Пользоваться ботом для этого необязательно.</p>
+    <p>Обращения разбирает разработчик вручную. Перед выдачей или изменением данных он может попросить подтвердить контроль над аккаунтом. Профиль в Telegram и история общего матча хранятся отдельно. Удаление профиля само по себе не стирает события матча для других игроков. По твоему запросу разработчик проверит также игровые записи и в установленный законом срок объяснит, что сделано, что осталось и на каком основании. Ты вправе обжаловать ответ в уполномоченном органе.</p>
 
-    <h2>Сколько мы храним данные</h2>
-    <p>Демки удаляем сразу после разбора. Показатели и тексты разборов храним, пока ты пользуешься Fragmentor, или до твоего запроса на удаление.</p>
-    <p>Средние показатели по уровням FACEIT мы считаем по обезличенным данным. По ним невозможно определить конкретного игрока, поэтому они могут храниться дольше.</p>
-
-    <h2>Твои права</h2>
-    <p>Ты можешь в любой момент запросить копию своих данных или их удаление. Напиши на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a> и укажи свой юзернейм в Telegram или ник FACEIT. Мы ответим в течение 30 дней.</p>
-    <p>Перестать пользоваться ботом можно в любой момент: достаточно его остановить.</p>
-
-    <h2>Сайт</h2>
-    <p>Сайт fragmentor.tech не использует cookies, аналитику и рекламные трекеры. Шрифты встроены в сам сайт и не загружаются со сторонних серверов. Выбранный язык сохраняется только в твоём браузере.</p>
-    <p>Сайт размещён у хостинг-провайдера, который может обрабатывать технические данные, например IP-адрес, чтобы доставлять страницы.</p>
-
-    <h2>Изменения</h2>
-    <p>Если политика изменится, мы обновим эту страницу и дату вверху. О существенных изменениях сообщим в боте.</p>
+    <h2>Когда ты открываешь сайт</h2>
+    <p>Сайт запоминает выбранный язык в твоём браузере. Мы не ставим cookies, аналитику и рекламные трекеры. Хостинг может обрабатывать IP-адрес и технические сведения о запросе, чтобы доставить страницу.</p>
   </div>
 
   <div data-l="en" lang="en">
     <h1>Privacy policy</h1>
-    <p class="date">Effective October 29, 2026.</p>
-    <p class="intro">This page explains what data Fragmentor (the Telegram bot @fragmentor_ai_bot and the website fragmentor.tech) collects, why it needs it and how to have it deleted.</p>
+    <p class="date">Version dated 25 November 2026.</p>
+    <p class="intro">When Fragmentor analyzes a CS2 match on FACEIT, it keeps match stats for everyone who played. This includes you if you played in that match, even if you have never opened our Telegram bot.</p>
 
-    <h2>Who we are</h2>
-    <p>Fragmentor is an independent project run by a private developer. It is not affiliated with FACEIT, Valve or Telegram. For any questions about your data, email <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>.</p>
+    <h2>Who handles your data</h2>
+    <p>Fragmentor is an independent service run by a private developer who operates fragmentor.tech and @fragmentor_ai_bot. You can reach the developer about your data at <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>.</p>
 
-    <h2>What data we process</h2>
+    <h2>What we keep after a match</h2>
+    <p>The demo and the FACEIT roster provide the map, score, match time, teams and round events. For example, the match log records shots, damage and player positions at the time of a kill. The log uses numbered slots for players. A separate record links each slot to the match, the player’s SteamID64 and stats, and their FACEIT ID and level when available in the roster.</p>
+    <p>This history lets us track a player’s progress across matches and recalculate stats when a formula changes. We also plan to use it to compare players with others at the same FACEIT level. We keep stats linked to a player for as long as we need them for these purposes. Match history has no fixed automatic expiry.</p>
+
+    <h2>When you use the bot</h2>
     <ul>
-      <li><b>Telegram data:</b> your user ID, name and username, and the messages and commands you send to the bot.</li>
-      <li><b>FACEIT data:</b> your nickname, player ID and level, plus public match information and statistics we get through FACEIT’s official APIs.</li>
-      <li><b>Match demos:</b> recordings of matches that we download for analysis and delete right after it.</li>
-      <li><b>Breakdown results:</b> the computed stats and the breakdown texts for your matches.</li>
-      <li><b>Subscription:</b> your subscription status and term. Payments are handled by Tribute; we never receive or store card details.</li>
+      <li>To run the bot and its waitlist, we keep your numeric Telegram ID, username if you have one, language, and the dates you registered and joined the waitlist. If you choose a time zone, we remember your UTC offset.</li>
+      <li>When you link a FACEIT account, we keep its public nickname, FACEIT ID, SteamID64 and the date you linked it. For linked game accounts we also keep the facts behind a review, such as the round in which a mistake recurred.</li>
+      <li>The bot reads the commands and links you send. To track a review, its database keeps the job number, match ID, status message ID, language, timestamps, and the result or reason for failure. We read the demo during analysis without saving the file. We clear the signed link from the job record when the job finishes.</li>
     </ul>
+    <p>We don’t ask for your real name, address, phone number or identity documents to analyze matches. Your real name and chat transcripts are not part of your player profile in the bot’s database. If you email us, we receive your email address and the contents of your request so we can respond.</p>
 
-    <h2>Why we need it</h2>
-    <p>To analyze your matches and send you breakdowns, compare your stats with players at your level, manage your subscription and answer your requests. We don’t use your data for advertising and we don’t sell it.</p>
+    <h2>Which services are involved</h2>
+    <p>We request public profiles and match data through the FACEIT API. We fetch the demo from FACEIT storage using the link a player sends. Telegram delivers messages and bot replies. Hosting providers run the bot, website and email and may retain service logs and database backups. We don’t sell player data or use it for advertising.</p>
 
-    <h2>Who we share it with</h2>
-    <p>Only the services Fragmentor can’t work without:</p>
-    <ul>
-      <li>FACEIT, the source of match data;</li>
-      <li>Telegram, the platform the bot runs on;</li>
-      <li>our hosting provider, whose servers run the service;</li>
-      <li>a language model provider, which receives anonymized match stats with no nicknames or IDs in order to write the breakdown text;</li>
-      <li>Tribute, which processes payments.</li>
-    </ul>
+    <h2>How to access, correct or delete your data</h2>
+    <p>Email <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a> with your FACEIT nickname or SteamID64 and tell us what you’d like to do. For a Telegram-only request, identify your Telegram account instead. You can ask for a copy, correction, restriction or deletion of your data, or object to its use. You can do this even if you have never used the bot.</p>
+    <p>The developer handles requests personally and may ask you to show that you control the account before sharing or changing its data. Your Telegram profile and the shared match history are stored separately. Deleting the profile alone does not erase events from other players’ match histories. The developer will also review the game records covered by your request and explain, within the applicable legal deadline, what was done and the grounds for keeping any remaining data. You can lodge a complaint with the relevant supervisory authority.</p>
 
-    <h2>How long we keep it</h2>
-    <p>Demo files are deleted right after analysis. Stats and breakdown texts are kept while you use Fragmentor, or until you ask us to delete them.</p>
-    <p>Averages for each FACEIT level are calculated from anonymized data. They can’t be used to identify any individual player, so they may be kept longer.</p>
-
-    <h2>Your rights</h2>
-    <p>You can ask for a copy of your data or for its deletion at any time. Email <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a> with your Telegram username or FACEIT nickname. We’ll reply within 30 days.</p>
-    <p>You can stop using the bot at any time by simply stopping it.</p>
-
-    <h2>The website</h2>
-    <p>fragmentor.tech uses no cookies, analytics or advertising trackers. Fonts are built into the site and aren’t loaded from third-party servers. Your language choice is stored only in your browser.</p>
-    <p>The site is hosted by a hosting provider, which may process technical data such as your IP address in order to serve the pages.</p>
-
-    <h2>Changes</h2>
-    <p>If this policy changes, we’ll update this page and the date at the top. We’ll announce significant changes in the bot.</p>
+    <h2>When you visit the website</h2>
+    <p>The site saves your language choice in your browser. We don’t use cookies, analytics or advertising trackers. Our web host may process your IP address and technical request details to deliver the page.</p>
   </div>
 </article>
 </main>
 
 <footer class="foot"><div class="wrap foot-in">
   <div>
-    <a class="brand" href="./"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5v7M16 22.5v7M2.5 16h7M22.5 16h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/><circle class="mark-dot" cx="16" cy="16" r="4.6"/></svg><span>Fragmentor</span></a>
+    <a class="brand" href="index.html"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5v7M16 22.5v7M2.5 16h7M22.5 16h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/><circle class="mark-dot" cx="16" cy="16" r="4.6"/></svg><span>Fragmentor</span></a>
   </div>
   <div>
     <p><a href="mailto:hello@fragmentor.tech">hello@fragmentor.tech</a></p>
@@ -363,6 +333,6 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
   </p>
 </div></footer>
 
-<script>(function(){var d=document.documentElement,M={"ru": {"t": "Политика конфиденциальности — Fragmentor", "d": "Какие данные собирает Fragmentor, зачем они нужны и как их удалить."}, "en": {"t": "Privacy policy — Fragmentor", "d": "What data Fragmentor collects, why it needs it and how to have it deleted."}};function set(l){d.setAttribute("lang",l);d.setAttribute("data-lang",l);document.title=M[l].t;var m=document.querySelector('meta[name="description"]');if(m)m.setAttribute("content",M[l].d);var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].setAttribute("aria-pressed",b[i].getAttribute("data-set-lang")===l?"true":"false")}}set(d.getAttribute("data-lang")==="en"?"en":"ru");var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].addEventListener("click",function(){var l=this.getAttribute("data-set-lang");try{localStorage.setItem("fr-lang",l)}catch(e){}set(l)})}})();</script>
+<script>(function(){var d=document.documentElement,M={"ru": {"t": "Политика конфиденциальности — Fragmentor", "d": "Какие данные Fragmentor сохраняет после матча и как запросить копию, исправление или удаление."}, "en": {"t": "Privacy policy — Fragmentor", "d": "What Fragmentor keeps after a match and how to request a copy, correction or deletion of your data."}};function set(l){d.setAttribute("lang",l);d.setAttribute("data-lang",l);document.title=M[l].t;var m=document.querySelector('meta[name="description"]');if(m)m.setAttribute("content",M[l].d);var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].setAttribute("aria-pressed",b[i].getAttribute("data-set-lang")===l?"true":"false")}}set(d.getAttribute("data-lang")==="en"?"en":"ru");var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].addEventListener("click",function(){var l=this.getAttribute("data-set-lang");try{localStorage.setItem("fr-lang",l)}catch(e){}set(l)})}})();</script>
 </body>
 </html>

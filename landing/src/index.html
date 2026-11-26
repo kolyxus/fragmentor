@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fragmentor — ИИ-тренер по CS2 в Telegram</title>
+<title>Fragmentor — тренер по CS2 в Telegram</title>
 <meta name="description" content="Fragmentor разбирает демки твоих матчей на FACEIT и объясняет в Telegram, где ты теряешь раунды и что тренировать на этой неделе.">
 <link rel="canonical" href="https://fragmentor.tech/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Fragmentor">
 <meta property="og:url" content="https://fragmentor.tech/">
-<meta property="og:title" content="Fragmentor — ИИ-тренер по CS2 в Telegram">
+<meta property="og:title" content="Fragmentor — тренер по CS2 в Telegram">
 <meta property="og:description" content="Разбор твоих матчей на FACEIT человеческим языком: где ты теряешь раунды и что тренировать на этой неделе.">
 <meta property="og:image" content="https://fragmentor.tech/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -274,8 +274,8 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
       <a class="btn btn-p" href="https://t.me/fragmentor_ai_bot"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.5 11.2 21.5 3.5l-3.7 16.8-5.6-4.1-2.9 3 .3-4.9 8.4-7.4-10.4 6.5z"/></svg><span data-l="ru">Встать в очередь на бету</span><span data-l="en">Join the beta waitlist</span></a>
       <a class="btn btn-s" href="#how"><span data-l="ru">Как это работает</span><span data-l="en">How it works</span></a>
     </div>
-    <p class="status" data-l="ru">Fragmentor в разработке. Напиши боту, и мы сообщим, когда откроем бету.</p>
-    <p class="status" data-l="en">Fragmentor is in development. Message the bot and we’ll let you know when the beta opens.</p>
+    <p class="status" data-l="ru">Пока разборы проходят закрытое тестирование. Напиши боту, и мы сообщим, когда откроем бету.</p>
+    <p class="status" data-l="en">Match breakdowns are in closed testing. Message the bot and we’ll let you know when the beta opens.</p>
   </div>
 
   <figure class="dbg-wrap">
@@ -295,8 +295,8 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
         <li class="ln bp cur" style="--d:680ms;--c:1250ms"><span class="g"><i class="dot"></i><i class="arrow"></i></span><span class="n">08</span><span class="side"></span><span class="x"><span data-l="ru">Умер в апсах с флешкой и смоком</span><span data-l="en">Died in apartments holding a flash and a smoke</span></span></li>
         <li class="note" style="--d:1450ms">
           <div class="note-h"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5v7M16 22.5v7M2.5 16h7M22.5 16h7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="square"/><circle class="mark-dot" cx="16" cy="16" r="4.6"/></svg><span>Fragmentor</span></div>
-          <p data-l="ru">Четвёртый раз за матч ты умираешь, не бросив гранаты. Флешка перед выходом из апсов спасла бы раунды 3 и 8. Её и потренируй на этой неделе.</p>
-          <p data-l="en">That’s the fourth time this match you died without using your grenades. A flash before leaving apartments would have saved rounds 3 and 8. Make it this week’s drill.</p>
+          <p data-l="ru">В раунде 8 у тебя остались флешка и дым на $500. Открой этот момент в демке и посмотри, когда можно было бросить одну из гранат.</p>
+          <p data-l="en">In round 8 you died with a flash and a smoke worth $500. Replay the moment and look for a chance to throw one.</p>
         </li>
         <li class="fold" style="--d:760ms"><span class="g"></span><span class="n">09</span><span class="side"></span><span class="x"><span class="box" aria-hidden="true">+</span><span data-l="ru">Раунды 9–12</span><span data-l="en">Rounds 9–12</span></span></li>
         <li class="half" style="--d:840ms"><span data-l="ru">Смена сторон</span><span data-l="en">Side switch</span></li>
@@ -320,14 +320,14 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
         <p data-l="en">Send the bot your nickname or a link to your profile. No passwords, no Steam login.</p>
       </div></li>
       <li><div>
-        <h3><span data-l="ru">Сыграй матч</span><span data-l="en">Play a match</span></h3>
-        <p data-l="ru">Когда демка появится на FACEIT, Fragmentor скачает её, разберёт и сразу удалит файл.</p>
-        <p data-l="en">Once the demo is up on FACEIT, Fragmentor downloads it, analyzes it and deletes the file right away.</p>
+        <h3><span data-l="ru">Пришли ссылку на демку</span><span data-l="en">Send the demo link</span></h3>
+        <p data-l="ru">Скопируй ссылку на скачивание демки своего матча на FACEIT и отправь её боту. Бот читает демку во время разбора без сохранения файла.</p>
+        <p data-l="en">Copy the demo download link for your FACEIT match and send it to the bot. The bot reads the demo during analysis without saving the file.</p>
       </div></li>
       <li><div>
         <h3><span data-l="ru">Получи разбор</span><span data-l="en">Get your breakdown</span></h3>
-        <p data-l="ru">Три главные ошибки с цифрами и одно задание на неделю. Подробности открываются кнопками под сообщением.</p>
-        <p data-l="en">Your three biggest mistakes with numbers, plus one drill for the week. Tap the buttons under the message for details.</p>
+        <p data-l="ru">В разбор попадает до трёх ошибок с примерами из раундов. Если цифры не указывают на явную ошибку, бот так и скажет.</p>
+        <p data-l="en">A breakdown highlights up to three mistakes and the rounds where they happened. If the numbers show no clear mistake, the bot says so.</p>
       </div></li>
     </ol>
 
@@ -338,34 +338,17 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
       </div>
       <div class="msg" data-l="ru">
         <p><b>Разбор матча на Mirage</b><br>13:9, победа</p>
-        <p>Время убийства 0,84 с — быстрее, чем у 70% игроков 8 уровня.</p>
-        <p>Точность первой пули 31% — ниже нормы для твоего уровня.</p>
-        <p><b>Три ошибки этого матча</b></p>
-        <ol>
-          <li>Четыре смерти без размена в апсах.</li>
-          <li>Трижды ослепил своих.</li>
-          <li>Четыре раза умер, не бросив гранаты.</li>
-        </ol>
-        <p><b>Задание на неделю:</b> перед игрой 10 минут отрабатывай флешку на выход из апсов.</p>
+        <p><b>Гранаты остались при тебе</b><br>В 8 из 16 смертей у тебя ещё были гранаты. У остальных девяти игроков так закончилась каждая четвёртая смерть.</p>
+        <p>В раунде 8 ты погиб в апсах с флешкой и дымом на $500.</p>
+        <p><b>Задание на неделю</b><br>В Yprac Hub на Mirage выбери дым и две флешки для своей позиции. Повтори каждый бросок по 10 раз.</p>
         <span class="time">23:41</span>
       </div>
       <div class="msg" data-l="en">
-        <p><b>Match breakdown: Mirage</b><br>13:9, win</p>
-        <p>Time to kill 0.84 s, faster than 70% of level 8 players.</p>
-        <p>First-bullet accuracy 31%, below the norm for your level.</p>
-        <p><b>Three mistakes this match</b></p>
-        <ol>
-          <li>Four untraded deaths in apartments.</li>
-          <li>Flashed your teammates three times.</li>
-          <li>Died four times without throwing your grenades.</li>
-        </ol>
-        <p><b>This week’s drill:</b> before you play, spend 10 minutes on the flash for leaving apartments.</p>
+        <p><b>Match breakdown on Mirage</b><br>13:9, win</p>
+        <p><b>Unused utility</b><br>You still had grenades in 8 of your 16 deaths. Across the other nine players, that happened in one death out of four.</p>
+        <p>In round 8 you died in apartments with a flash and a smoke worth $500.</p>
+        <p><b>This week’s drill</b><br>In Yprac Hub on Mirage, pick a smoke and two flashes for your position. Practice each throw 10 times.</p>
         <span class="time">23:41</span>
-      </div>
-      <div class="kb" aria-hidden="true">
-        <span><span data-l="ru">Смерти</span><span data-l="en">Deaths</span></span>
-        <span><span data-l="ru">Гранаты</span><span data-l="en">Utility</span></span>
-        <span><span data-l="ru">Стрельба</span><span data-l="en">Aim</span></span>
       </div>
       <figcaption class="sr"><span data-l="ru">Пример сообщения с разбором в Telegram</span><span data-l="en">An example breakdown message in Telegram</span></figcaption>
     </figure>
@@ -375,15 +358,15 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
 <section class="wrap sec" id="metrics">
   <div class="sec-head">
     <h2><span data-l="ru">Что считает Fragmentor</span><span data-l="en">What Fragmentor measures</span></h2>
-    <p data-l="ru">Все цифры считает код по событиям из демки. Нейросеть их не придумывает: она только объясняет, что они значат и что с этим делать.</p>
-    <p data-l="en">Every number is computed by code from events in the demo. The AI doesn’t make numbers up: it only explains what they mean and what to do about them.</p>
+    <p data-l="ru">Все показатели считаются по событиям в демке. У каждого вывода в разборе есть цифры и примеры из матча.</p>
+    <p data-l="en">Every stat comes from events in the demo. Each finding is backed by numbers and moments from the match.</p>
   </div>
 
   <div class="ttk">
     <div>
       <h3><span data-l="ru">Время убийства</span><span data-l="en">Time to kill</span></h3>
-      <p data-l="ru">Сколько проходит от твоего первого попадания до 100 урона по врагу. Зависит от контроля спрея и от того, куда ты целишься.</p>
-      <p data-l="en">How long it takes from your first hit to 100 damage on an enemy. It comes down to spray control and where you aim.</p>
+      <p data-l="ru">На схеме одна дуэль. От первого попадания до 100 урона по одному врагу прошло 0,84 с. Для среднего нужно хотя бы 20 дуэлей за несколько матчей, отдельно для винтовок и снайперского оружия.</p>
+      <p data-l="en">The chart shows one duel. It took 0.84 seconds from the first hit to deal 100 damage to one opponent. An average needs at least 20 duels across multiple matches, counted separately for rifles and sniper rifles.</p>
     </div>
     <svg viewBox="0 0 420 222" role="img" aria-labelledby="ttk-t">
       <title id="ttk-t">0,84 s: 27 + 33 + 40 = 100</title>
@@ -416,9 +399,9 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
       <h3><span data-l="ru">Стрельба</span><span data-l="en">Shooting</span></h3>
       <dl>
         <div><dt><span data-l="ru">Точность</span><span data-l="en">Accuracy</span></dt>
-          <dd data-l="ru">Какая доля выстрелов попадает во врага.</dd><dd data-l="en">What share of your shots hit an enemy.</dd></div>
+          <dd data-l="ru">Как часто ты попадаешь из винтовки, пока видишь врага.</dd><dd data-l="en">How often your rifle shots hit an opponent while an enemy is visible.</dd></div>
         <div><dt><span data-l="ru">Первая пуля</span><span data-l="en">First bullet</span></dt>
-          <dd data-l="ru">Как часто попадает первый выстрел, пока разброс ещё не мешает.</dd><dd data-l="en">How often your first shot lands, before spread gets in the way.</dd></div>
+          <dd data-l="ru">В стычках, где ты попал во врага, как часто попадание пришлось на первый выстрел из винтовки.</dd><dd data-l="en">In fights where you hit an opponent, how often your opening rifle shot landed.</dd></div>
         <div><dt><span data-l="ru">Хедшоты</span><span data-l="en">Headshots</span></dt>
           <dd data-l="ru">Доля попаданий в голову.</dd><dd data-l="en">The share of hits that land in the head.</dd></div>
         <div><dt><span data-l="ru">Стрельба на ходу</span><span data-l="en">Shooting on the move</span></dt>
@@ -429,9 +412,9 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
       <h3><span data-l="ru">Дуэли</span><span data-l="en">Duels</span></h3>
       <dl>
         <div><dt><span data-l="ru">Открывающие дуэли</span><span data-l="en">Opening duels</span></dt>
-          <dd data-l="ru">Кто первым начал раунд и чем это закончилось.</dd><dd data-l="en">Who took the first fight of the round and how it went.</dd></div>
+          <dd data-l="ru">Сколько раз ты сделал первое убийство в раунде или погиб первым.</dd><dd data-l="en">How often you got the first kill or were the first to die in a round.</dd></div>
         <div><dt><span data-l="ru">Смерти без размена</span><span data-l="en">Untraded deaths</span></dt>
-          <dd data-l="ru">Когда рядом не оказалось тиммейта, чтобы отомстить.</dd><dd data-l="en">Deaths with no teammate close enough to trade.</dd></div>
+          <dd data-l="ru">Сколько раз после твоей смерти тиммейты не убили соперника, который тебя снял, в течение пяти секунд.</dd><dd data-l="en">Deaths where no teammate killed your attacker within five seconds.</dd></div>
         <div><dt><span data-l="ru">Клатчи</span><span data-l="en">Clutches</span></dt>
           <dd data-l="ru">Раунды, которые ты вытаскивал в одиночку.</dd><dd data-l="en">Rounds you had to win on your own.</dd></div>
       </dl>
@@ -444,39 +427,34 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
         <div><dt><span data-l="ru">Урон гранатами</span><span data-l="en">Utility damage</span></dt>
           <dd data-l="ru">Сколько урона нанесли HE и молотовы.</dd><dd data-l="en">Damage from your HE grenades and molotovs.</dd></div>
         <div><dt><span data-l="ru">Неиспользованные гранаты</span><span data-l="en">Unused utility</span></dt>
-          <dd data-l="ru">Сколько раз ты умер, не бросив то, что купил.</dd><dd data-l="en">How often you died without throwing what you bought.</dd></div>
+          <dd data-l="ru">Сколько раз ты погиб от врага с гранатами в инвентаре и сколько они стоили.</dd><dd data-l="en">How often you died to an enemy while carrying grenades and how much they were worth.</dd></div>
       </dl>
     </div>
   </div>
 
   <div class="compare">
-    <p data-l="ru">Каждый показатель сравниваем с игроками твоего уровня FACEIT:</p>
-    <p data-l="en">Each number is compared with players at your FACEIT level:</p>
-    <span class="chip lo"><span data-l="ru">ниже нормы</span><span data-l="en">below the norm</span></span>
-    <span class="chip mid"><span data-l="ru">в норме</span><span data-l="en">around the norm</span></span>
-    <span class="chip hi"><span data-l="ru">выше нормы</span><span data-l="en">above the norm</span></span>
+    <p data-l="ru">Для разбора сравниваем твои показатели с результатами остальных девяти игроков матча. Когда есть хотя бы три предыдущих разбора, учитываем и твоё среднее.</p>
+    <p data-l="en">We compare your stats with the other nine players in the match. Once you have at least three earlier breakdowns, we also use your own average.</p>
   </div>
 </section>
 
 <section class="wrap sec" id="data">
   <div class="sec-head">
     <h2><span data-l="ru">Твои данные</span><span data-l="en">Your data</span></h2>
-    <p data-l="ru">Fragmentor работает с минимумом данных и не просит лишнего.</p>
-    <p data-l="en">Fragmentor works with as little data as possible and never asks for more than it needs.</p>
+    <p data-l="ru">Разбор одного матча строится на игре всех десяти участников. Поэтому в истории может быть твоя статистика, даже если ты не запускал бота.</p>
+    <p data-l="en">A match breakdown uses all ten players’ performances. Your stats can be in the match history even if you’ve never used the bot.</p>
   </div>
   <ul class="pledges">
-    <li><b><span data-l="ru">Только твои матчи</span><span data-l="en">Only your matches</span></b>
-      <span data-l="ru">Разбираем матчи тех, кто сам подключил бота.</span><span data-l="en">We only analyze matches of players who connected the bot themselves.</span></li>
-    <li><b><span data-l="ru">Демки не храним</span><span data-l="en">No demo storage</span></b>
-      <span data-l="ru">Файл удаляется сразу после разбора, остаются только посчитанные показатели.</span><span data-l="en">The file is deleted right after analysis. Only the computed stats are kept.</span></li>
-    <li><b><span data-l="ru">Без паролей и Steam</span><span data-l="en">No passwords, no Steam</span></b>
-      <span data-l="ru">Нужен только публичный ник FACEIT. Логин и пароль мы никогда не попросим.</span><span data-l="en">All we need is your public FACEIT nickname. We will never ask for a login or password.</span></li>
-    <li><b><span data-l="ru">Официальные источники</span><span data-l="en">Official sources</span></b>
-      <span data-l="ru">Данные о матчах берём через официальные API FACEIT.</span><span data-l="en">Match data comes from FACEIT’s official APIs.</span></li>
-    <li><b><span data-l="ru">Нейросеть видит только цифры</span><span data-l="en">The AI only sees numbers</span></b>
-      <span data-l="ru">Для текста разбора отправляем обезличенную статистику, без ников и ID.</span><span data-l="en">To write your breakdown we send anonymized stats with no nicknames or IDs.</span></li>
-    <li><b><span data-l="ru">Удаление по запросу</span><span data-l="en">Deletion on request</span></b>
-      <span data-l="ru">Напиши на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>, и мы удалим всё, что о тебе знаем.</span><span data-l="en">Email <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a> and we’ll delete everything we have about you.</span></li>
+    <li><b><span data-l="ru">Участники матча</span><span data-l="en">Match participants</span></b>
+      <span data-l="ru">Храним SteamID64 игрока, его команду и показатели. Если FACEIT передаёт ID профиля и уровень, сохраняем их тоже.</span><span data-l="en">We keep each player’s SteamID64, team and stats, along with their FACEIT ID and level when available.</span></li>
+    <li><b><span data-l="ru">События в демке</span><span data-l="en">Events in the demo</span></b>
+      <span data-l="ru">Демку читаем без сохранения файла. Остаётся журнал раундов с событиями и позициями в момент убийств. В нём игроки обозначены номерами мест, а связь с аккаунтами хранится отдельно.</span><span data-l="en">We read the demo without saving the file. We keep round events and player positions at the time of kills. Players have seat numbers in this record, with account IDs stored separately.</span></li>
+    <li><b><span data-l="ru">История игры</span><span data-l="en">Match history</span></b>
+      <span data-l="ru">Храним историю, пока она нужна для отслеживания прогресса, пересчёта показателей и подготовки сравнений по уровням FACEIT. Фиксированного срока автоматического удаления статистики нет.</span><span data-l="en">We keep match history for as long as we need it to track progress, recalculate stats and build future comparisons by FACEIT level. Game stats have no fixed automatic deletion date.</span></li>
+    <li><b><span data-l="ru">Профиль в боте</span><span data-l="en">Your bot profile</span></b>
+      <span data-l="ru">Бот сохраняет твой Telegram ID, юзернейм, если он есть, и настройки. При привязке добавляет публичный ник и ID профиля FACEIT. Для привязанных игроков сохраняем и факты для личных разборов.</span><span data-l="en">The bot stores your Telegram ID, username if you have one, and settings. Linking a FACEIT profile adds its public nickname and ID. For linked players, we also save the facts behind their breakdowns.</span></li>
+    <li><b><span data-l="ru">Обращения о данных</span><span data-l="en">Data requests</span></b>
+      <span data-l="ru">Хочешь узнать, какие сведения о тебе есть, исправить или удалить их? Напиши на <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>. Для поиска игровой истории укажи ник FACEIT или SteamID64. Обратиться может любой участник матча.</span><span data-l="en">To see, correct or request deletion of your data, email <a href="mailto:privacy@fragmentor.tech">privacy@fragmentor.tech</a>. Include your FACEIT nickname or SteamID64 so we can find your match history. Any match participant can ask.</span></li>
   </ul>
   <p class="more"><a href="privacy.html"><span data-l="ru">Подробнее в политике конфиденциальности</span><span data-l="en">Read the privacy policy</span></a></p>
 </section>
@@ -493,8 +471,8 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
     </details>
     <details>
       <summary><span data-l="ru">Сколько это стоит?</span><span data-l="en">How much does it cost?</span></summary>
-      <p data-l="ru">Первые разборы бесплатные. Дальше будет подписка, цену объявим к запуску беты.</p>
-      <p data-l="en">Your first breakdowns are free. After that there will be a subscription. We’ll announce the price when the beta launches.</p>
+      <p data-l="ru">Запись в очередь на бету бесплатная. Условия доступа к разборам объявим к её запуску.</p>
+      <p data-l="en">Joining the beta waitlist is free. We’ll announce how to get access to breakdowns when the beta opens.</p>
     </details>
     <details>
       <summary><span data-l="ru">Какие матчи поддерживаются?</span><span data-l="en">Which matches are supported?</span></summary>
@@ -508,8 +486,8 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
     </details>
     <details>
       <summary><span data-l="ru">Fragmentor связан с FACEIT или Valve?</span><span data-l="en">Is Fragmentor affiliated with FACEIT or Valve?</span></summary>
-      <p data-l="ru">Нет. Это независимый проект, который пользуется публичными API FACEIT по их правилам.</p>
-      <p data-l="en">No. It’s an independent project that uses FACEIT’s public APIs under their terms.</p>
+      <p data-l="ru">Fragmentor — независимый проект. Данные о профилях и матчах получаем через FACEIT Data API.</p>
+      <p data-l="en">Fragmentor is an independent project. We get profile and match data through the FACEIT Data API.</p>
     </details>
   </div>
 </section>
@@ -535,6 +513,6 @@ html[data-lang="ru"] [data-l="en"],html[data-lang="en"] [data-l="ru"]{display:no
   </p>
 </div></footer>
 
-<script>(function(){var d=document.documentElement,M={"ru": {"t": "Fragmentor — ИИ-тренер по CS2 в Telegram", "d": "Fragmentor разбирает демки твоих матчей на FACEIT и объясняет в Telegram, где ты теряешь раунды и что тренировать на этой неделе."}, "en": {"t": "Fragmentor — AI coach for CS2 in Telegram", "d": "Fragmentor reads the demos of your FACEIT matches and explains in Telegram where you lose rounds and what to practice this week."}};function set(l){d.setAttribute("lang",l);d.setAttribute("data-lang",l);document.title=M[l].t;var m=document.querySelector('meta[name="description"]');if(m)m.setAttribute("content",M[l].d);var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].setAttribute("aria-pressed",b[i].getAttribute("data-set-lang")===l?"true":"false")}}set(d.getAttribute("data-lang")==="en"?"en":"ru");var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].addEventListener("click",function(){var l=this.getAttribute("data-set-lang");try{localStorage.setItem("fr-lang",l)}catch(e){}set(l)})}})();</script>
+<script>(function(){var d=document.documentElement,M={"ru": {"t": "Fragmentor — тренер по CS2 в Telegram", "d": "Fragmentor разбирает демки твоих матчей на FACEIT и объясняет в Telegram, где ты теряешь раунды и что тренировать на этой неделе."}, "en": {"t": "Fragmentor — CS2 coach on Telegram", "d": "Fragmentor reads the demos of your FACEIT matches and explains in Telegram where you lose rounds and what to practice this week."}};function set(l){d.setAttribute("lang",l);d.setAttribute("data-lang",l);document.title=M[l].t;var m=document.querySelector('meta[name="description"]');if(m)m.setAttribute("content",M[l].d);var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].setAttribute("aria-pressed",b[i].getAttribute("data-set-lang")===l?"true":"false")}}set(d.getAttribute("data-lang")==="en"?"en":"ru");var b=document.querySelectorAll("[data-set-lang]");for(var i=0;i<b.length;i++){b[i].addEventListener("click",function(){var l=this.getAttribute("data-set-lang");try{localStorage.setItem("fr-lang",l)}catch(e){}set(l)})}})();</script>
 </body>
 </html>
