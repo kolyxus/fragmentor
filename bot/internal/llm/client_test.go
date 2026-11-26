@@ -144,7 +144,7 @@ func TestHTTPFailures(t *testing.T) {
 				w.Header().Set("Retry-After", "0")
 				http.Error(w, testInput+" "+testKey, code)
 			})
-			_, err := client.Complete(t.Context(), messages)
+			result, err := client.Complete(t.Context(), messages)
 			var status *HTTPError
 			if !errors.As(err, &status) || status.StatusCode != code {
 				t.Fatalf("expected typed HTTP %d error, got %v", code, err)
@@ -155,6 +155,9 @@ func TestHTTPFailures(t *testing.T) {
 			}
 			if got := calls.Load(); got != want {
 				t.Errorf("calls = %d, want %d", got, want)
+			}
+			if result.HTTPAttempts != int(want) {
+				t.Errorf("reported %d HTTP attempts, want %d", result.HTTPAttempts, want)
 			}
 			assertPrivate(t, err.Error()+logs.String())
 		})
@@ -177,7 +180,7 @@ func TestRateLimitRetry(t *testing.T) {
 	})
 	started := time.Now()
 	got, err := client.Complete(t.Context(), messages)
-	if err != nil || got.Text != testText || calls.Load() != 2 {
+	if err != nil || got.Text != testText || calls.Load() != 2 || got.HTTPAttempts != 2 {
 		t.Fatalf("retry failed: calls=%d, err=%v", calls.Load(), err)
 	}
 	if time.Since(started) < time.Second {
@@ -290,7 +293,7 @@ func TestByteLimits(t *testing.T) {
 				calls.Add(1)
 				fmt.Fprint(w, success)
 			})
-			if _, err := client.Complete(t.Context(), messages); err == nil || calls.Load() != tc.calls {
+			if got, err := client.Complete(t.Context(), messages); err == nil || calls.Load() != tc.calls || got.HTTPAttempts != int(tc.calls) {
 				t.Errorf("calls=%d, err=%v", calls.Load(), err)
 			}
 		})

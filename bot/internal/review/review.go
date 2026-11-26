@@ -28,9 +28,29 @@ const MaxMoments = 3
 // Render returns the template review of the facts in lang, with the drills
 // and the names of the places of c.
 func Render(f findings.Facts, lang i18n.Lang, c *content.Catalog) string {
+	return newRenderer(f, lang, c).render(nil)
+}
+
+func newRenderer(f findings.Facts, lang i18n.Lang, c *content.Catalog) renderer {
 	r := renderer{f: f, lang: lang, t: i18n.For(lang).Review, c: c, byID: make(map[string]findings.FactFinding, len(f.Findings))}
 	for _, ff := range f.Findings {
 		r.byID[ff.ID] = ff
+	}
+	return r
+}
+
+// render shares the template frame and catalog task with generated reviews.
+// sections, when present, holds one complete, validated section per pick.
+func (r renderer) render(sections map[string]string) string {
+	f, lang, c := r.f, r.lang, r.c
+	section := func(pk findings.PickFacts) string {
+		if sections != nil {
+			return sections[pk.Finding]
+		}
+		var b strings.Builder
+		b.WriteString(r.pick(pk))
+		r.writeMoments(&b, pk.Finding)
+		return b.String()
 	}
 	var b strings.Builder
 	results := map[string]string{findings.ResultWin: r.t.Win, findings.ResultLoss: r.t.Loss, findings.ResultDraw: r.t.Draw}
@@ -47,14 +67,12 @@ func Render(f findings.Facts, lang i18n.Lang, c *content.Catalog) string {
 	} else {
 		b.WriteString(r.t.Mistakes)
 		for i, pk := range f.Review.Mistakes {
-			fmt.Fprintf(&b, "\n%d. %s", i+1, r.pick(pk))
-			r.writeMoments(&b, pk.Finding)
+			fmt.Fprintf(&b, "\n%d. %s", i+1, section(pk))
 		}
 	}
 	if s := f.Review.Strength; s != nil {
 		b.WriteString("\n\n")
-		fmt.Fprintf(&b, r.t.Strength, r.pick(*s))
-		r.writeMoments(&b, s.Finding)
+		fmt.Fprintf(&b, r.t.Strength, section(*s))
 	}
 	if task := f.Review.Task; task != nil {
 		if d, ok := c.Drill(task.Drill); ok {
@@ -119,20 +137,43 @@ func scale(f findings.FactFinding) float64 {
 	return 1
 }
 
-// against tells the finding against its base: the events of the player,
-// what the base would give and how many more.
-func (r renderer) against(f findings.FactFinding) string {
-	k := scale(f)
+// comparisonValues carries display quantities. Model distinguishes a share
+// from a rate per round and a count per match.
+type comparisonValues struct {
+	Model    string `json:"model"`
+	Observed string `json:"observed"`
+	Sample   string `json:"sample"`
+	Lobby    string `json:"lobby"`
+	Expected string `json:"expected,omitempty"`
+	Excess   string `json:"excess"`
+	Place    string `json:"place,omitempty"`
+	Side     string `json:"side,omitempty"`
+}
+
+func (r renderer) comparison(f findings.FactFinding) comparisonValues {
 	switch f.Model {
 	case findings.ModelPerRound:
-		return fmt.Sprintf(r.t.PerRound, r.number(f.X*k, 1), r.rounds(int(f.N)), r.number(f.BaseRate*k, 2),
-			r.number(f.Expected*k, 1), r.number(f.Excess*k, 1))
+		k := scale(f)
+		return comparisonValues{Model: f.Model, Observed: r.number(f.X*k, 1), Sample: r.rounds(int(f.N)),
+			Lobby: r.number(f.BaseRate*k, 2), Expected: r.number(f.Expected*k, 1), Excess: r.number(f.Excess*k, 1)}
 	case findings.ModelPerMatch:
-		return fmt.Sprintf(r.t.Spot, r.place(f.Place), r.t.Sides[string(f.Side)], int(f.X), r.of(f.Rule, int(f.Sample)),
-			r.number(f.BaseRate, 1), r.number(f.Excess, 1))
+		return comparisonValues{Model: f.Model, Place: r.place(f.Place), Side: r.t.Sides[string(f.Side)],
+			Observed: strconv.Itoa(int(f.X)), Sample: r.of(f.Rule, int(f.Sample)),
+			Lobby: r.number(f.BaseRate, 1), Excess: r.number(f.Excess, 1)}
 	}
-	return fmt.Sprintf(r.t.Share, r.number(f.X, 0), r.of(f.Rule, int(f.N)), r.percent(f.BaseRate),
-		r.number(f.Expected, 1), r.number(f.Excess, 1))
+	return comparisonValues{Model: f.Model, Observed: r.number(f.X, 0), Sample: r.of(f.Rule, int(f.N)),
+		Lobby: r.percent(f.BaseRate), Expected: r.number(f.Expected, 1), Excess: r.number(f.Excess, 1)}
+}
+
+func (r renderer) against(f findings.FactFinding) string {
+	v := r.comparison(f)
+	switch v.Model {
+	case findings.ModelPerRound:
+		return fmt.Sprintf(r.t.PerRound, v.Observed, v.Sample, v.Lobby, v.Expected, v.Excess)
+	case findings.ModelPerMatch:
+		return fmt.Sprintf(r.t.Spot, v.Place, v.Side, int(f.X), v.Sample, v.Lobby, v.Excess)
+	}
+	return fmt.Sprintf(r.t.Share, v.Observed, v.Sample, v.Lobby, v.Expected, v.Excess)
 }
 
 // count is the events of a finding, as a list of findings shows them.
@@ -175,6 +216,10 @@ func (r renderer) writeMoments(b *strings.Builder, id string) {
 
 // moment tells a moment of the finding.
 func (r renderer) moment(f findings.FactFinding, e findings.Evidence) string {
+	return r.momentLine(e, r.momentDetail(f, e))
+}
+
+func (r renderer) momentDetail(f findings.FactFinding, e findings.Evidence) string {
 	var parts []string
 	add := func(format string, args ...any) { parts = append(parts, fmt.Sprintf(format, args...)) }
 	switch f.Rule {
@@ -245,7 +290,10 @@ func (r renderer) moment(f findings.FactFinding, e findings.Evidence) string {
 			add(r.t.Left, strings.Join(names, ", "), e.GrenadeValue)
 		}
 	}
-	what := strings.Join(parts, ", ")
+	return strings.Join(parts, ", ")
+}
+
+func (r renderer) momentLine(e findings.Evidence, what string) string {
 	if e.Tick == 0 {
 		return fmt.Sprintf(r.t.MomentNoGoto, e.Round, r.clock(e.Clock, e.Planted), what)
 	}

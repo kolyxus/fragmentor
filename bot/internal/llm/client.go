@@ -46,7 +46,13 @@ type Usage struct {
 type Result struct {
 	Text  string
 	Usage Usage
+	// HTTPAttempts counts POST attempts submitted to the HTTP client, even
+	// when the outcome is unknown. Local validation failures cost no attempt.
+	HTTPAttempts int
 }
+
+// Timeout is the configured deadline budget for completion and correction.
+func (c *Client) Timeout() time.Duration { return c.timeout }
 
 // HTTPError reports the status without disclosing the provider's error body.
 type HTTPError struct{ StatusCode int }
@@ -93,43 +99,47 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (Result, erro
 	if len(body) > c.maxRequestBytes {
 		return Result{}, errors.New("llm: request exceeds byte limit")
 	}
-	for attempt := 0; ; attempt++ {
+	var result Result
+	for {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 		if err != nil {
-			return Result{}, errors.New("llm: invalid request")
+			return result, errors.New("llm: invalid request")
 		}
 		// Only this loop may replay a body. In particular, do not give the
 		// HTTP/2 transport a way to rewind a paid POST.
 		req.GetBody = nil
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		result.HTTPAttempts++
 		resp, err := c.http.Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
-				return Result{}, ctx.Err()
+				return result, ctx.Err()
 			}
-			return Result{}, errors.New("llm: HTTP request failed")
+			return result, errors.New("llm: HTTP request failed")
 		}
 		if resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
-			return c.readResult(ctx, resp.Body)
+			reply, err := c.readResult(ctx, resp.Body)
+			reply.HTTPAttempts = result.HTTPAttempts
+			return reply, err
 		}
 		resp.Body.Close()
 		if err := ctx.Err(); err != nil {
-			return Result{}, err
+			return result, err
 		}
 		status := &HTTPError{StatusCode: resp.StatusCode}
-		if resp.StatusCode != http.StatusTooManyRequests || attempt == c.maxRetries {
-			return Result{}, status
+		if resp.StatusCode != http.StatusTooManyRequests || result.HTTPAttempts > c.maxRetries {
+			return result, status
 		}
 		delay := retryDelay(resp.Header.Get("Retry-After"))
 		deadline, _ := ctx.Deadline()
 		if delay >= time.Until(deadline) {
-			return Result{}, status
+			return result, status
 		}
 		select {
 		case <-ctx.Done():
-			return Result{}, ctx.Err()
+			return result, ctx.Err()
 		case <-time.After(delay):
 		}
 	}
